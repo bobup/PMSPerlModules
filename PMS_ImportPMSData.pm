@@ -33,6 +33,9 @@ sub GetPMSTeams( $ );
 #		We will only read the first sheet of the workbook.
 #	$yearBeingProcessed - in the form '2016'
 #
+# Logging must be enabled.
+# 
+#
 sub ReadPMS_RSIDNData( $$ ) {
 	my $filename = $_[0];
 	my $yearBeingProcessed = $_[1];
@@ -41,7 +44,28 @@ sub ReadPMS_RSIDNData( $$ ) {
 	my $numRSIDNRows = 0;  # number of rows in RSIDN table before any possible update
 	my $lastRSIDNFileName = "?"; 	# name of the previous file used to load RSIDN data
 	my $query;
-	
+
+    # get some info about this spreadsheet (e.g. # sheets, # rows and columns in first sheet, etc)
+    my $g_ref = ReadData( $filename );
+    # $g_ref is an array reference
+    # $g_ref->[0] is a reference to a hashtable:  the "control hash"
+    my $numSheets = $g_ref->[0]{sheets};        # number of sheets, including empty sheets
+    print "\nfile $filename:\n  Number of sheets:  $numSheets.\n  Names of non-empty sheets:\n" 
+    	if( $debug > 0);
+    my $sheetNames_ref = $g_ref->[0]{sheet};  # reference to a hashtable containing names of non-empty sheets.  key = sheet
+                                              # name, value = monotonically increasing integer starting at 1 
+    my %tmp = % { $sheetNames_ref } ;         # hashtable of sheet names (above)
+    my ($sheetName);
+    foreach $sheetName( sort { $tmp{$a} <=> $tmp{$b} } keys %tmp ) {
+        print "    $sheetName\n" if( $debug > 0 );
+    }
+    
+    # get the first sheet
+    my $g_sheet1_ref = $g_ref->[1];         # reference to the hashtable representing the sheet
+    my $numRowsInSpreadsheet = $g_sheet1_ref->{maxrow};
+    my $numColumnsInSpreadsheet = $g_sheet1_ref->{maxcol};
+    print "numRows=$numRowsInSpreadsheet, numCols=$numColumnsInSpreadsheet\n" if( $debug > 0 );
+
 	# do we already have this data in the database?
 	PMSLogging::PrintLogNoNL( "", "", "->Get pms ($tableName) data?...", 1 );
     my $dbh = PMS_MySqlSupport::GetMySqlHandle();
@@ -75,35 +99,26 @@ sub ReadPMS_RSIDNData( $$ ) {
 	}
 	
 	if( $refreshRSIDNFile ) {
-		# our RSIDN table is either empty or out of date - DROP it and then populate it
+		# We've decided to read the spreadsheet because our RSIDN table is either empty or 
+		# out of date - DROP it and then populate it.
+		# First, one simple check...
+		if( ($numRSIDNRows > 0) && ($numRSIDNRows > $numRowsInSpreadsheet) ) {
+			# Hmmm - this is interesting.  The spreadsheet is SMALLER than the last one we processed
+			# with this RSIDN data.  This isn't a good sign, but we'll just print a warning and
+			# go on:
+			PMSLogging::DumpWarning( "", "", "PMS_ImportPMSData::ReadPMS_RSIDNData(): The RSIDN file " .
+				"that we're about to read contains LESS rows ($numRowsInSpreadsheet) than the " .
+				"current RSIDN table ($numRSIDNRows)\n    This is a WARNING only, but it looks like " .
+				"the spreadsheet ($filename) might be truncated.", 1 );
+		}
 		( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE $tableName" );
 		
 		my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
 		PMSLogging::PrintLog( "", "", "Yes! reading '$filename'...", 1 );
-	    # read the spreadsheet
-	    my $g_ref = ReadData( $filename );
-	    # $g_ref is an array reference
-	    # $g_ref->[0] is a reference to a hashtable:  the "control hash"
-	    my $numSheets = $g_ref->[0]{sheets};        # number of sheets, including empty sheets
-	    print "\nfile $filename:\n  Number of sheets:  $numSheets.\n  Names of non-empty sheets:\n" if( $debug > 0);
-	    
-	    my $sheetNames_ref = $g_ref->[0]{sheet};  # reference to a hashtable containing names of non-empty sheets.  key = sheet
-	                                              # name, value = monotonically increasing integer starting at 1 
-	    my %tmp = % { $sheetNames_ref } ;         # hashtable of sheet names (above)
-	    my ($sheetName);
-	    foreach $sheetName( sort { $tmp{$a} <=> $tmp{$b} } keys %tmp ) {
-	        print "    $sheetName\n" if( $debug > 0 );
-	    }
-	    
-	    # get the first sheet
-	    my $g_sheet1_ref = $g_ref->[1];         # reference to the hashtable representing the sheet
-	    my $numRows = $g_sheet1_ref->{maxrow};
-	    my $numColumns = $g_sheet1_ref->{maxcol};
-	    print "numRows=$numRows, numCols=$numColumns\n" if( $debug > 0 );
 	    # pass through the sheet collecting initial data on all swimmers:
 	    # (skip first row because we assume it has row titles)
 	    my $rowNum;
-	    for( $rowNum = 2; $rowNum <= $numRows; $rowNum++ ) {
+	    for( $rowNum = 2; $rowNum <= $numRowsInSpreadsheet; $rowNum++ ) {
 	    	if( ($rowNum % 1000) == 0 ) {
 	    		print "...working on row $rowNum...\n";
 	    	}
