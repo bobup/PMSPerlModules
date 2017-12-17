@@ -1,0 +1,10 @@
+# .gitignore for the PMSPerlModule project
+
+# ignore Mac-specific directory descriptor file
+.DS_Store
+# ignore Eclipse file
+.project
+# ignore any directory named 'old' - temp backups
+old/
+# ignore vi temp files
+*.swp
