@@ -41,7 +41,7 @@ sub ReadPMS_RSIDNData( $$ ) {
 	my $yearBeingProcessed = $_[1];
 	my $tableName = "RSIDN_$yearBeingProcessed";
 	my( $simpleName, $dirs, $suffix ) = fileparse( $filename );		# get last simple name in filename
-	my $numRSIDNRows = 0;  # number of rows in RSIDN table before any possible update
+	my $numRSIDNSwimmerRows = 0;  # number of swimmers in RSIDN table before any possible update
 	my $lastRSIDNFileName = "?"; 	# name of the previous file used to load RSIDN data
 	my $query;
 
@@ -62,7 +62,7 @@ sub ReadPMS_RSIDNData( $$ ) {
     
     # get the first sheet
     my $g_sheet1_ref = $g_ref->[1];         # reference to the hashtable representing the sheet
-    my $numRowsInSpreadsheet = $g_sheet1_ref->{maxrow};
+    my $numRowsInSpreadsheet = $g_sheet1_ref->{maxrow};	# number of rows in RSIDN file
     my $numColumnsInSpreadsheet = $g_sheet1_ref->{maxcol};
     print "numRows=$numRowsInSpreadsheet, numCols=$numColumnsInSpreadsheet\n" if( $debug > 0 );
 
@@ -73,11 +73,11 @@ sub ReadPMS_RSIDNData( $$ ) {
     $query = "SELECT COUNT(*) as Count FROM $tableName";
     ( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query );
 	if( defined(my $resultHash = $sth->fetchrow_hashref) ) {
-		$numRSIDNRows = $resultHash->{'Count'};
+		$numRSIDNSwimmerRows = $resultHash->{'Count'};		# number of swimmers in RSIDN table
 	} else {
 		die "Error returned by fetchrow_hashref after SELECT COUNT(*) FROM $tableName";
 	}
-	if( $numRSIDNRows > 0 ) {
+	if( $numRSIDNSwimmerRows > 0 ) {
 		# we have RSIDN data - is it the data from the requested RSIDN file?
 		$query = "SELECT RSIDNFileName FROM Meta  WHERE Year = '$yearBeingProcessed'";
 		(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query );
@@ -102,14 +102,15 @@ sub ReadPMS_RSIDNData( $$ ) {
 		# We've decided to read the spreadsheet because our RSIDN table is either empty or 
 		# out of date - DROP it and then populate it.
 		# First, one simple check...
-		if( ($numRSIDNRows > 0) && ($numRSIDNRows > $numRowsInSpreadsheet) ) {
+		my $numSwimmerRowsInSpreadsheet = $numRowsInSpreadsheet-1;		# ignore header row
+		if( ($numRSIDNSwimmerRows > 0) && ($numRSIDNSwimmerRows > $numSwimmerRowsInSpreadsheet) ) {
 			# Hmmm - this is interesting.  The spreadsheet is SMALLER than the last one we processed
 			# with this RSIDN data.  This isn't a good sign, but we'll just print a warning and
 			# go on:
 			PMSLogging::DumpWarning( "", "", "PMS_ImportPMSData::ReadPMS_RSIDNData(): The RSIDN file " .
-				"that we're about to read contains LESS rows ($numRowsInSpreadsheet) than the " .
-				"current RSIDN table ($numRSIDNRows)\n    This is a WARNING only, but it looks like " .
-				"the spreadsheet ($filename) might be truncated.", 1 );
+				"that we're about to read contains LESS swimmers ($numSwimmerRowsInSpreadsheet)\n" .
+				"    than the current RSIDN table ($numRSIDNSwimmerRows).    This is a WARNING only, " .
+				"but it looks like the spreadsheet\n    ($filename) might be truncated.", 1 );
 		}
 		( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE $tableName" );
 		
@@ -254,7 +255,7 @@ sub ReadPMS_RSIDNData( $$ ) {
 
 	    print( "->Done reading $rowNum rows from our RSIDN file.\n" );
 	} else {
-		PMSLogging::PrintLog( "", "", "NO (we already have the data from: '$lastRSIDNFileName'; $numRSIDNRows rows.)", 1 );
+		PMSLogging::PrintLog( "", "", "NO (we already have the data from: '$lastRSIDNFileName'; $numRSIDNSwimmerRows swimmers.)", 1 );
 	}
     
 } # end of ReadPMS_RSIDNData()
