@@ -1363,29 +1363,36 @@ sub ComputePointsFromPlace($) {
 # Notes:
 #	Not called with OW "strokes", which are actually the name of the host of the OW event.
 #
+my %strokes = ();		# $strokes{'x'} = canonical stroke, e.g. $strokes{'Fr'} = "Freestyle"
 sub CanonicalStroke( $ ) {
 	my $stroke = $_[0];
 	
 	if( $stroke =~ m/fly/i ) {
 		# could be "fly" or "butter fly", etc.
+		$strokes{$stroke} = "Butterfly";
 		$stroke = "Butterfly";
 	}
 	elsif( $stroke =~ m/^f/i ) {
 		# could be free, freestyle, etc
+		$strokes{$stroke} = "Freestyle";
 		$stroke = "Freestyle"
 	}
 	elsif( $stroke =~ m/back/i ) {
 		# could be "back" or "Back Stroke", etc.
+		$strokes{$stroke} = "Backstroke";
 		$stroke = "Backstroke";
 	}
 	elsif( $stroke =~ m/breast/i ) {
 		# could be "Breast" or "breast stroke", etc.
+		$strokes{$stroke} = "Breaststroke";
 		$stroke = "Breaststroke";
 	} elsif( $stroke =~ m/^i.*m/i ) {
 		# could be "individual Medley" or "IM", etc.
+		$strokes{$stroke} = "Individual Medley";
 		$stroke = "Individual Medley";
 	} elsif( $stroke =~ /medley/i ) {
 		# could be "medley" or "medley relay", but not "Individual Medley" since we already caught that.
+		$strokes{$stroke} = "Medley";
 		$stroke = "Medley";
 	}
 	else {
@@ -1396,6 +1403,21 @@ sub CanonicalStroke( $ ) {
 	
 } # end of CanonicalStroke()
 
+
+sub DumpStrokes() {
+	my $lastKey = "";
+	my @keys = sort { $strokes{$a} cmp $strokes{$b} } keys %strokes;
+	my $printToConsole = 1;
+	
+	PMSLogging::PrintLog( "", "", "\nDump Of All Strokes Seen And Their Aliases:", $printToConsole );
+	foreach my $key (@keys) {
+		if( $strokes{$key} ne $lastKey ) {
+			$lastKey = $strokes{$key};
+			PMSLogging::PrintLog( "", "", "Stroke:  $strokes{$key}", $printToConsole );
+		}
+		PMSLogging::PrintLog( "", "", "    $key", $printToConsole );
+	}
+}
 
 
 # 				my( $distance, $stroke ) = GetDistanceAndStroke( $row[2] );
