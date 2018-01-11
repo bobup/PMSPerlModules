@@ -90,7 +90,7 @@ sub GetMySqlHandle {
 	$dbh = $databaseParameters{"$dbid-handle"};
 	if( $dbh == -1 ) {
 		# first attempt at getting the connection
-		print "\nNOTE:  Using MySQL ($dbid: db $database) for storage.\n";
+		print "\nNOTE:  Using MySQL ($dbid: $database) for storage.\n";
 		$dbh = DBI->connect("DBI:mysql:database=$database;host=$host", $user, $password);
 		if( !defined($dbh) ) {
         	PMSLogging::DumpError( 0, 0, "PMS_MySqlSupport::GetMySqlHandle(): ABORT: failed to get the " .
@@ -106,6 +106,37 @@ sub GetMySqlHandle {
 	}
 	return $dbh;
 } # end of GetMySqlHandle()
+
+
+
+# CloseMySqlHandle - close the handle to the specified MySQL database.  If no specific database is requested
+#	then close the handle to the "default" one.  If the handle is not a valid connection or an error
+#	occurs we just ignore it and return.
+#
+# PASSED:
+#	$dbid (optional) - if specified this will specify the database whose handle is to be closed.  If not
+#		specified then the dbid 'default' will be used.
+#
+# RETURNED:
+#	n/a
+#
+sub CloseMySqlHandle {
+	my $dbid = $_[0];
+	my $dbh = 0;
+	if( !defined $dbid ) {
+		$dbid = "default";
+	}
+	my $database = $databaseParameters{"$dbid-database"};
+	$dbh = $databaseParameters{"$dbid-handle"};
+	if( $dbh != -1 ) {
+		# looks like a valid handle
+		print "\nNOTE:  Closing the handle to the MySQL database ($dbid: $database).\n";
+		$dbh->disconnect();
+		$databaseParameters{"$dbid-handle"} = -1;
+	}
+} # end of CloseMySqlHandle()
+
+
 
 
 # GetTableList - update the passed tableList hash to indicate what db tables we currently have.
@@ -163,6 +194,8 @@ sub GetTableList {
 # Return:
 #	$sth - statement handle
 #	$rv - result value (handle)
+#	$status - If all is good this will be an empty string, otherwise it's a rather cryptic and
+#		short error message.
 #
 #  e.g.:
 #    ($sth, $rv) = PrepareAndExecute( $dbh, 
@@ -175,7 +208,9 @@ sub PrepareAndExecute {
 	my $dbh = $_[0];
 	my $qry = $_[1];
 	my $log = $_[2];
+	my $rv = 0;
 	my $i;
+	my $status = "";			# assume no error
 	for( $i = 3; ; $i++ ) {
 		if( !defined( $_[$i] ) ) {
 			$i--;
@@ -190,18 +225,24 @@ sub PrepareAndExecute {
 	if( $log ne "" ) {
 		PMSLogging::DumpNote( "", "", "$log: $qry" );
 	}
-	my $sth = $dbh->prepare( $qry ) or 
-    	die "Can't prepare: '$qry'\n";
-    my $rv;
-    if( $i >= 3 ) {
-# todo: need to fix this to be more general
-        $rv = $sth->execute($_[3], $_[4] ) or 
-    		die "Can't execute: '$qry'\n";
-    } else {
-        $rv = $sth->execute or 
-    		die "Can't execute: '$qry'\n";
-    }
-	return( $sth, $rv );
+	my $sth = $dbh->prepare( $qry );
+	if( !$sth ) {
+    	$status = "Can't prepare: '$qry'\n";
+	} else {
+	    if( $i >= 3 ) {
+	# todo: need to fix this to be more general
+	        $rv = $sth->execute($_[3], $_[4] );
+	        if( !$rv ) { 
+	    		$status = "Can't execute-1: '$qry'\n";
+	        }
+	    } else {
+	        $rv = $sth->execute;
+	        if( !$rv ) { 
+	    		$status = "Can't execute-2: '$qry'\n";
+	        }
+	    }
+	}
+	return( $sth, $rv, $status );
 } # end of PrepareAndExecute()
 
 
