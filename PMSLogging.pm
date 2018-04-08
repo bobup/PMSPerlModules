@@ -128,7 +128,7 @@ sub DumpError {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalErr;
     if( (($line eq "")||($line == 0)) && (($lineNum eq "")||($lineNum == 0)) ) {
-        $totalErr = "! ERROR: $errStr\n";
+        $totalErr = "!! ERROR: $errStr\n";
     } else {
         $totalErr = "! ERROR: $errStr: [line $lineNum, '$line']\n";
     }
