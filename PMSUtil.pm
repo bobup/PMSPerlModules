@@ -1492,4 +1492,41 @@ sub CanonicalOWCourse( $ ) {
 
 
 
+#	$swimmerDataFile = 	PMSUtil::GetMostRecentVersion( ".*RSIDN.*", $PMSSwimmerData );
+# GetMostRecentVersion - scan the passed directory and return the newest version of the file
+#	whose name matches the passed reg exp.
+#
+# PASSED:
+#	$filePattern - we only consider files which case sensitively matches this RE.  
+#		NOTE:  it's a RE!  not a file glob.
+#	$directory - search this directory (does not recursively search sub dirs)
+#
+# RETURNED:
+#	$fileName - the full path file name of the found file, or an empty string is none found
+#
+sub GetMostRecentVersion( $$ ) {
+	my ($filePattern, $directory) = @_;
+	my @files;
+	my $fileName = "";
+	my $newestTime = 2**31-1;
+	
+	opendir(my $DH, $directory) or die "PMSUtil::GetMostRecentVersion(): Failed to open '" .
+		"$directory': $! - ABORT!";
+	while (defined (my $file = readdir($DH))) {
+		if( $file =~ m/$filePattern/ ) {
+			my $path = File::Spec->catfile( $directory, $file );
+			next unless (-f $path);           # ignore non-files - automatically does . and ..
+			if( -M $path < $newestTime ) {
+				$newestTime = -M $path;
+				$fileName = $path;
+			}
+		}
+	}
+	closedir($DH);
+	return $fileName;
+} # end of GetMostRecentVersion()
+
+
+
+
 1;  # end of module
