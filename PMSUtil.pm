@@ -1502,12 +1502,12 @@ sub CanonicalOWCourse( $ ) {
 #	$directory - search this directory (does not recursively search sub dirs)
 #
 # RETURNED:
-#	$fileName - the full path file name of the found file, or an empty string is none found
+#	$fileName - the full path file name of the found file, or undefined is none found
 #
 sub GetMostRecentVersion( $$ ) {
 	my ($filePattern, $directory) = @_;
 	my @files;
-	my $fileName = "";
+	my $fileName;
 	my $newestTime = 2**31-1;
 	
 	opendir(my $DH, $directory) or die "PMSUtil::GetMostRecentVersion(): Failed to open '" .

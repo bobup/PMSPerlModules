@@ -53,9 +53,8 @@ sub GetTemplateName() {
 #		a valid full path to the property file.
 #	$yearBeingProcessed - the year we think we're processing (taken from the date of
 #		processing or passed program parameter or some other application-dependent method.)
-#		Note that the macro with the same name ('YearBeingProcessed')
-#		will be set by this routine if the year is set by the property file.
-#		We will use whatever value we have when validating events defined in this property file.
+#		Any attempt to change the macro with the same name ('YearBeingProcessed')
+#		will throw a non-fatal error and then be ignored.
 #
 # NOTES:
 #	A line in this file looks like one of the following:
@@ -196,9 +195,13 @@ sub GetProperties( $$$ ) {
 			}
 		} else {
 			# we have a macro, but there are special cases where we IGNORE macros defined by property files:
-			# Don't set the "YearBeingProcessed" macro to the value in the property file IF we set it from
-			#	a command line argument:
-			next if( ($macroName eq "YearBeingProcessed") && (defined PMSStruct::GetMacrosRef()->{"YearBeingProcessed"}) );
+			# Don't set the "YearBeingProcessed" macro to the value in the property file since it's required
+			# that the yearBeingProcessed be known prior to reading the property file.
+			if( $macroName eq "YearBeingProcessed" ) {
+				print( "!!! (non-fatal) ERROR: It is illegal to attempt to set YearBeingProcessed " .
+					"in a property file. Fix this line: '$line'\n");
+				next;
+			}
 			# this is executed only if a non-empty or empty value is assigned to the property in the property file.
 			if( $macroName eq $line ) {
 				# empty value
@@ -209,11 +212,6 @@ sub GetProperties( $$$ ) {
 				$value = $line;
 				$value =~ s/^[^\s]+\s+//;
 				PMSStruct::GetMacrosRef()->{$macroName} = $value;
-				# special case:  if we just set yearBeingProcessed then we want to know it NOW!
-				if( $macroName eq "YearBeingProcessed" ) {
-					$yearBeingProcessed = $value;
-#print "yearbeingprocessed set to $yearBeingProcessed\n";
-				}
 			}
 			#PMSLogging::DumpNote( "", "", "macroname='$macroName', value='$value'" );
 		}

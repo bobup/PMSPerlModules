@@ -2105,5 +2105,21 @@ sub GetUSMSSwimmerIdFromName {
 } # end of GetUSMSSwimmerIdFromName()
 
 
+# return >0 if we have some results to report, 0 otherwise.
+sub WeHaveResultsToReport() {
+	my $result = 1;
+	my $query = "SELECT COUNT(*) from Events";
+	my $dbh = GetMySqlHandle();
+	
+	my ($sth, $rv) = PrepareAndExecute( $dbh, $query );
+	if( my $resultHash = $sth->fetchrow_hashref ) {
+		$result = $resultHash->{'COUNT(*)'};
+	} else {
+		print "PMS_MySqlSupport::WeHaveResultsToReport(): unable to count the number of events\n";
+	}
+
+	return $result;
+} # end of WeHaveResultsToReport()
+
 
 1;  # end of module
