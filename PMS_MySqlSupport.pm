@@ -1798,9 +1798,9 @@ sub GetSwimmersAddress( $ ) {
 		$state = $resultHash->{'State'};
 		$zip = $resultHash->{'Zip'};
 		$country = $resultHash->{'Country'};
-		$firstN = $resultHash->{'FirstName'};
-		$middleI = $resultHash->{'MiddleInitial'};
-		$lastN = $resultHash->{'LastName'};
+		$firstN = PMSUtil::trim( $resultHash->{'FirstName'} );
+		$middleI = PMSUtil::trim( $resultHash->{'MiddleInitial'} );
+		$lastN = PMSUtil::trim( $resultHash->{'LastName'} );
 	}
 	return ($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN);
 } # end of GetSwimmersAddress()

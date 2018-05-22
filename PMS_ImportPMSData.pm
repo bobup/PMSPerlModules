@@ -15,6 +15,7 @@ use File::Basename;
 use PMS_MySqlSupport;
 use PMSConstants;
 use PMSLogging;
+require PMSUtil;
 
 my $debug = 1;
 
@@ -182,8 +183,10 @@ sub ReadPMS_RSIDNData( $$ ) {
 	        }
 	        
 	        # validate and correct (if necessary) the swimmerId and regnum
-	        $swimmerId = PMSUtil::ValidateAndCorrectSwimmerId( $swimmerId, "PMS_RSIDNData::ReadPMS_RSIDNData()" );
-	        $reg = PMSUtil::ValidateAndCorrectSwimmerId( $reg, "PMS_RSIDNData::ReadPMS_RSIDNData()" );
+	        $swimmerId = PMSUtil::ValidateAndCorrectSwimmerId( $swimmerId, "PMS_RSIDNData::ReadPMS_RSIDNData()",
+	        	$yearBeingProcessed );
+	        $reg = PMSUtil::ValidateAndCorrectSwimmerId( $reg, "PMS_RSIDNData::ReadPMS_RSIDNData()",
+	        	$yearBeingProcessed );
 	        
 	        
 		    # convert the $gender into our own canonical form:

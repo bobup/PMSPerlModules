@@ -134,7 +134,7 @@ sub StoreResult {
 	$regNum = PMSUtil::GenerateCanonicalRegNum( $regNum );
 	# now that we're happy with the regnum we're going to validate it:
 	$regNum = PMSUtil::ValidateAndCorrectSwimmerId( $regNum, "PMSStoreSingleRow::StoreResult(): ($firstName " .
-		"$middleInitial $lastName): " );
+		"$middleInitial $lastName): ", PMSStruct::GetMacrosRef()->{"YearBeingProcessed"} );
     $dateOfBirth =~ s/\s*//g;		# remove all whitespace
 
 	# Now see if the regnum we just got (above) should actually be replaced with a different regnum.

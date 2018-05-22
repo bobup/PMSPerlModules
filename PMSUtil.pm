@@ -575,13 +575,14 @@ sub GenerateCanonicalUSMSSwimmerId($) {
 #		based on the presence of a '-'.  If any of the characters are '?' or
 #		$id is $PMSConstants::INVALID_REGNUM then we'll know it's an invalid id and handle it appropriatly.
 #	$caller - a string used in the generated log message if we discover a problem with the passed id.
+#	$yearBeingProcessed - (optional) the year being processed.  Beginning in 2018 ALL characters are legal!
 #
 # RETURNED:
 #	$id - the passed $id, or slightly modified to replace illegal characters with likely legal ones if
 #		such a replacement would likely yield a valid id.
 #
 # NOTES:
-#	The following characters are illegal in the passed id:
+#	The following characters are illegal in the passed id (2017 and before):
 #		L   I   O (oh)      Q
 #	they will be replaced with:
 #		1   1   0 (zero)	0 (zero)
@@ -589,15 +590,20 @@ sub GenerateCanonicalUSMSSwimmerId($) {
 #	Also:  remove all but 5 chars in swimmerid; remove non letter/digit/-  (to remove * from old
 #	style regnums marking non-pms.)
 #
-sub ValidateAndCorrectSwimmerId( $$ ) {
-	my($id, $caller) = @_;
+#	Today (26Apr2018) we got a new RSIDN file that had reg numbers with L, I, and Q in them.
+#	After investigation it turns out that ALL letters/digits are legal beginning in 2018.
+#
+sub ValidateAndCorrectSwimmerId {
+	my($id, $caller, $yearBeingProcessed) = @_;
 	my $idType = "USMSSwimmerId";
 	my $newId = $id;
 
+	# if the $yearBeingProcessed isn't passed then just make it < 2018
+	$yearBeingProcessed = 2017 if( !defined $yearBeingProcessed );
 
 # until we hear differently we're going to disable this routine.  Today (26Apr2018) we got a new RSIDN
 # file that had reg numbers with L, I, and Q in them.  Waiting to hear what the new rules are.
-return $newId;
+#return $newId;
 
 
 	# don't bother if the passed $id is $PMSConstants::INVALID_REGNUM
@@ -634,7 +640,8 @@ return $newId;
 
 		# now replace known typos - make a guess as to the correct replacement
 		# Only do this if this id is likely valid except typos
-		if( $newId !~ m/\?/ ) {
+		# ALSO: only do this for the years 2017 and before:
+		if( ($newId !~ m/\?/) && ($yearBeingProcessed < 2018) ) {
 			$id = $newId;
 			$newId =~ s/[LI]/1/gi;
 			$newId =~ s/[OQ]/0/gi;
