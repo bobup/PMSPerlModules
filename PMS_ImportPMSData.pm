@@ -117,7 +117,27 @@ sub ReadPMS_RSIDNData( $$ ) {
 		
 		my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
 		PMSLogging::PrintLog( "", "", "Yes! reading '$filename'...", 1 );
-	    # pass through the sheet collecting initial data on all swimmers:
+		# next, clear the RSIDN data in our meta data so if we don't complete the reading of this RSIDN file
+		# we will force the read of the RSIDN file the next time we run:
+		$query = "UPDATE Meta SET RSIDNFileName = '(No RSIDN File)' WHERE Year='$yearBeingProcessed'";
+		my $rowsAffected = $dbh->do( $query );
+		if( $rowsAffected == 0 ) {
+			# update failed - must not be any rows for this year to update.  INSERT instead
+			print "(Pre-read): UPDATE of Meta failed (query='$query') - try INSERT instead.\n" if( $debug > 0 );
+			$query = "INSERT INTO Meta (RSIDNFileName,Year) VALUE ('(No RSIDN File)','$yearBeingProcessed')";
+			$rowsAffected = $dbh->do( $query );
+			if( $rowsAffected == 0 ) {
+				# oops - Update failed
+				PMSLogging::DumpError( 0, 0, "PMS_ImportPMSData.pm::ReadPMS_RSIDNData(): " .
+					"(Pre-read): Unable to perform this INSERT: '$query'", 1 );
+			} else {
+				print "(Pre-read): Insert succeeded:  '$query'\n" if( $debug > 0 );
+			}
+		} else {
+			print "(Pre-read): Update of $rowsAffected rows succeeded:  '$query'\n" if( $debug > 0 );
+		}
+		
+	    # Finally, pass through the sheet collecting initial data on all swimmers:
 	    # (skip first row because we assume it has row titles)
 	    my $rowNum;
 	    for( $rowNum = 2; $rowNum <= $numRowsInSpreadsheet; $rowNum++ ) {
@@ -239,7 +259,7 @@ sub ReadPMS_RSIDNData( $$ ) {
 	    }
 	    # we're done - updata our meta data
 		$query = "UPDATE Meta SET RSIDNFileName = '$simpleName' WHERE Year='$yearBeingProcessed'";
-		my $rowsAffected = $dbh->do( $query );
+		$rowsAffected = $dbh->do( $query );
 		if( $rowsAffected == 0 ) {
 			# update failed - must not be any rows for this year to update.  INSERT instead
 			print "UPDATE of Meta failed (query='$query') - try INSERT instead.\n" if( $debug > 0 );
