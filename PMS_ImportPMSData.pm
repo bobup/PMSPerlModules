@@ -287,13 +287,14 @@ sub ReadPMS_RSIDNData( $$ ) {
 #	$yearBeingProcessed -
 #
 # RETURNED:
-#	$refreshRSIDNFile -
+#	$refreshRSIDNFile - 1 means that the passed RSIND file is different from the last one we used, 0 otherwise.
 #	$yearBeingProcessed -
 #
 sub RSINDFileIsNew( $$ ) {
 	my( $simpleName, $yearBeingProcessed ) = @_;
     my $dbh = PMS_MySqlSupport::GetMySqlHandle();
-	my ($refreshRSIDNFile, $lastRSIDNFileName);
+	my $refreshRSIDNFile = 0;
+	my $lastRSIDNFileName;
 	
 	# we have RSIDN data - is it the data from the requested RSIDN file?
 	my $query = "SELECT RSIDNFileName FROM Meta  WHERE Year = '$yearBeingProcessed'";
