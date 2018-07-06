@@ -22,6 +22,7 @@ my $debug = 1;
 # Forward declaration....
 sub ReadPMS_RSIDNData( $$ );
 sub GetPMSTeams( $ );
+sub RSINDFileIsNew( $$ );
 
 ####====================================================================================================================================
 ####====================================================================================================================================
@@ -79,20 +80,10 @@ sub ReadPMS_RSIDNData( $$ ) {
 		die "Error returned by fetchrow_hashref after SELECT COUNT(*) FROM $tableName";
 	}
 	if( $numRSIDNSwimmerRows > 0 ) {
-		# we have RSIDN data - is it the data from the requested RSIDN file?
-		$query = "SELECT RSIDNFileName FROM Meta  WHERE Year = '$yearBeingProcessed'";
-		(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query );
-		my $arr_ref = $sth2->fetchrow_arrayref();
-		$lastRSIDNFileName = $arr_ref->[0];		# default is "(none)" - set when table created
-		if( !defined $lastRSIDNFileName ) {
-			print "The RSIDNFileName in Meta is undefined, so it didn't match '$simpleName'\n" if( $debug > 0 );
-			# last RSIDN file read is different from what we're asked to read
-			$refreshRSIDNFile = 1;
-		} elsif( $lastRSIDNFileName ne $simpleName ) {
-			print "The RSIDNFileName in Meta ($lastRSIDNFileName) didn't match '$simpleName'\n" if( $debug > 0 );
-			# last RSIDN file read is different from what we're asked to read
-			$refreshRSIDNFile = 1;
-		}
+		# see if the passed RSIND file name is different from the one we last used to populate our
+		# RSIDN table:
+		($refreshRSIDNFile, $lastRSIDNFileName) = RSINDFileIsNew( $simpleName, $yearBeingProcessed);
+		# 1 means that it's different, 0 means that it is not
 	} else {
 		# we have no RSIDN data - read the RSIDN file
 		print "  (We found no data in the $tableName table)\n" if( $debug > 0 );
@@ -285,6 +276,43 @@ sub ReadPMS_RSIDNData( $$ ) {
 
 
 
+
+#		$refreshRSIDNFile = RSINDFileIsNew( $simpleName, $yearBeingProcessed);
+#
+# RSINDFileIsNew - determine whether or not the passed simple name of a RSIND file is different from the
+#	simple name of the last RSIND file used to populate our RSIND table.
+#
+# PASSED:
+#	$simpleName -
+#	$yearBeingProcessed -
+#
+# RETURNED:
+#	$refreshRSIDNFile -
+#	$yearBeingProcessed -
+#
+sub RSINDFileIsNew( $$ ) {
+	my( $simpleName, $yearBeingProcessed ) = @_;
+    my $dbh = PMS_MySqlSupport::GetMySqlHandle();
+	my ($refreshRSIDNFile, $lastRSIDNFileName);
+	
+	# we have RSIDN data - is it the data from the requested RSIDN file?
+	my $query = "SELECT RSIDNFileName FROM Meta  WHERE Year = '$yearBeingProcessed'";
+	(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query );
+	my $arr_ref = $sth2->fetchrow_arrayref();
+	$lastRSIDNFileName = $arr_ref->[0];		# default is "(none)" - set when table created
+	if( !defined $lastRSIDNFileName ) {
+		print "The RSIDNFileName in Meta is undefined, so it didn't match '$simpleName'\n" if( $debug > 0 );
+		# last RSIDN file read is different from what we're asked to read
+		$refreshRSIDNFile = 1;
+	} elsif( $lastRSIDNFileName ne $simpleName ) {
+		print "The RSIDNFileName in Meta ($lastRSIDNFileName) didn't match '$simpleName'\n" if( $debug > 0 );
+		# last RSIDN file read is different from what we're asked to read
+		$refreshRSIDNFile = 1;
+	}
+	
+	return ($refreshRSIDNFile, $lastRSIDNFileName);
+	
+} # end of RSINDFileIsNew()
 
 
 
