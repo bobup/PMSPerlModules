@@ -119,15 +119,15 @@ sub PrintLogNoNL {
 #
 # PASSED:
 #	$line - the result line from a result file being processed when this ERROR is dumped.
-#		Set to "" if not known.
-#	$lineNum - the number of the $line in the result file.  Set to 0 if not known.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the ERROR to dump
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub DumpError {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalErr;
-    if( (($line eq "")||($line == 0)) && (($lineNum eq "")||($lineNum == 0)) ) {
+	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
         $totalErr = "!! ERROR: $errStr\n";
     } else {
         $totalErr = "! ERROR: $errStr: [line $lineNum, '$line']\n";
@@ -140,22 +140,20 @@ sub DumpError {
 
 
 
-
 #
 # DumpWarning - dump a WARNING to the log file, and optionally to the console
 #
 # PASSED:
-#	$line - the result line from a result file being processed when this WARNING is dumped.
-#		Set to "" if not known.
-#	$lineNum - the number of the $line in the result file.  Set to 0 or "" if not known.
+#	$line - the result line from a result file being processed when this ERROR is dumped.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the WARNING to dump
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub DumpWarning {
     my ( $line, $lineNum, $errStr, $console ) = @_;
-    my $len = length( $lineNum );
     my $totalWarn;
-    if( ($line eq "") && (($len ==0) || ($lineNum == 0) ) ) {
+	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
         $totalWarn = "! WARNING: $errStr\n";
     } else {
         $totalWarn = "! WARNING: $errStr: [line $lineNum, '$line']\n";

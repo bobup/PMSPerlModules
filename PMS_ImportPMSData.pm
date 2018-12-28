@@ -201,7 +201,7 @@ sub ReadPMS_RSIDNData( $$ ) {
 	        
 	        
 		    # convert the $gender into our own canonical form:
-		    $gender = PMSUtil::GenerateCanonicalGender( "", "", $gender );
+		    $gender = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $gender );
 		    
     		# convert birthdate into mysql format
     		#  mm/dd/yyyy -> yyyy-mm-dd

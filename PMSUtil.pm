@@ -683,7 +683,7 @@ sub GenerateCanonicalGender($$$) {
 	$result = 'F' if( $result eq 'G');
 	$result = 'M' if( $result eq 'B');
 	if( ($result ne 'M') && ($result ne 'F') ) {
-		print "GenerateCononicalGender: ($fileName: $lineNum) returning illegal value '$result' when passed '$passedGender'\n";
+		print "GenerateCanonicalGender: ($fileName: $lineNum) returning illegal value '$result' when passed '$passedGender'\n";
 		$result = "?";
 	}
 	return $result;

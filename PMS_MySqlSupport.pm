@@ -1965,7 +1965,7 @@ sub GetTeamMembers( $$ ) {
 			# result will be of the form:
 			#	First M Last(CAT1:43)     or
 			#	First M Last(CAT2:43)     or
-			#	First M Last(CAT1:33+CAT2:10=43)     or
+			#	First M Last(CAT1:33+CAT2:10=43)
 			if( $cat1Points > 0 ) {
 				my $listToPlaceID = PMSStruct::GetListToPlaceIDs( "1-" . $resultHash->{'SwimmerId'} );
 				if( defined $listToPlaceID ) {

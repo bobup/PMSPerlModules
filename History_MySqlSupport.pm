@@ -273,7 +273,7 @@ sub GetSwimmerEventHistory_Recursive( $$$$$$$$ ) {
 			"AND Category = '$category' AND " .
 			"EXTRACT(YEAR FROM Date) < $theYearBeingProcessed " .
 			"Order by Date DESC", 
-			lc($lastName) eq $debugLastName ? "GetSwimmerEventHistory_Recursive for $debugLastName" : "" );
+			lc($lastName) eq lc($debugLastName) ? "GetSwimmerEventHistory_Recursive for $debugLastName" : "" );
 	while( my $resultHash = $sth->fetchrow_hashref ) {
 		# we've got a previous swim of this event for this swimmer 
 		my $date = $resultHash->{'Date'};		# of the form 2016-05-12

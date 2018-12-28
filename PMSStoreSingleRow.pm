@@ -217,13 +217,13 @@ sub StoreResult {
     	$numTiesSeenInResults = 0;
     } else {
     	# something not right...
-		PMSLogging::DumpNote( $line, $rowNum, "Found a major discrepancy between recordedPlace (" .
+		PMSLogging::DumpError( $line, $rowNum, "Found a major discrepancy between recordedPlace (" .
 			$recordedPlace . ") and computedPlace ($computedPlace).\n" .
-			"  Swimmer's internal ID=$swimmerId, computedPlace=$computedPlace, recordedPlace=$recordedPlace," .
-			"numNonPMSSwimmersInThisGroup=$numNonPMSSwimmersInThisGroup,\n" .
-			"    numTiesSeenInResults=$numTiesSeenInResults, genAgeGrpRace='$genAgeGrpRace', " .
-			"lastRecordedPlaceSeen='$lastRecordedPlaceSeen',\n" .
-			"    filename='$raceFileName'.", 
+			"  ComputedPlace=$computedPlace, recordedPlace=$recordedPlace, genAgeGrpRace='$genAgeGrpRace',\n" .
+			"    numNonPMSSwimmersInThisGroup=$numNonPMSSwimmersInThisGroup, " .
+			"numTiesSeenInResults=$numTiesSeenInResults,\n" .
+			"    lastRecordedPlaceSeen='$lastRecordedPlaceSeen', Swimmer's internal ID=$swimmerId,\n" .
+			"    filename='$raceFileName'.\n    ", 
 			0 );
     	$numTiesSeenInResults = 0;
     }
