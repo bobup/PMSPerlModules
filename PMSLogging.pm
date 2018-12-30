@@ -60,16 +60,16 @@ sub printLog( $ ) {
 # PrintLog - print the passed string to the log file and optionally to the console
 #
 # PASSED:
-#	$line - the result line from a result file being processed when this string is dumped.
-#		Set to "" if not known.
-#	$lineNum - the number of the $line in the result file.  Set to 0 if not known.
+#	$line - the result line from a result file being processed when this ERROR is dumped.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the string to dump
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub PrintLog {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalErr;
-    if( ($line eq "") && ($lineNum eq "") ) {
+	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
         $totalErr = "$errStr\n";
     } else {
         $totalErr = "$errStr: [line $lineNum, '$line']\n";
@@ -88,16 +88,16 @@ sub PrintLog {
 # PrintLogNoNL - print the passed string to the log file and optionally to the console with no EOL
 #
 # PASSED:
-#	$line - the result line from a result file being processed when this string is dumped.
-#		Set to "" if not known.
-#	$lineNum - the number of the $line in the result file.  Set to 0 if not known.
+#	$line - the result line from a result file being processed when this ERROR is dumped.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the string to dump
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub PrintLogNoNL {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalErr;
-    if( ($line eq "") && ($lineNum eq "") ) {
+	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
         $totalErr = "$errStr";
     } else {
         $totalErr = "$errStr: [line $lineNum, '$line']";
@@ -169,16 +169,16 @@ sub DumpWarning {
 # DumpNote - dump a note to the log file, and optionally to the console
 #
 # PASSED:
-#	$line - the result line from a result file being processed when this note is dumped.
-#		Set to "" if not known.
-#	$lineNum - the number of the $line in the result file.  Set to "" if not known.
+#	$line - the result line from a result file being processed when this ERROR is dumped.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the note to dump
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub DumpNote {
     my ( $line, $lineNum, $errStr, $console ) = @_;
 	    my $totalErr;
-	    if( ($line eq "") && ($lineNum eq "" ) ) {
+	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
 	        $totalErr = "NOTE: $errStr\n";
 	    } else {
 	        $totalErr = "NOTE: $errStr: [line $lineNum, '$line']\n";
@@ -194,16 +194,16 @@ sub DumpNote {
 # DumpProblem - dump a "problem" to the log file
 #
 # PASSED:
-#	$line - the result line from a result file being processed when this PROBLEM is dumped.
-#		Set to "" if not known.
-#	$lineNum - the number of the $line in the result file.  Set to 0 if not known.
+#	$line - the result line from a result file being processed when this ERROR is dumped.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the PROBLEM to dump
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 #
 sub DumpProblem_old {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalErr;
-    if( ($line eq "") && ($lineNum eq "" ) ) {
+	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
         $totalErr = "PROBLEM: $errStr\n";
     } else {
         $totalErr = "PROBLEM:  $errStr: [line $lineNum, '$line']\n";
@@ -391,14 +391,15 @@ sub DumpMacros {
 #
 # PASSED:
 #   $row - a reference to the row with the warning (an array of fields)
-#	$rowNum - the number of the $row in the result file.  Set to 0 or "" if not known.
+#		Set to "" (or 0) if not known.
+#	$rowNum - the number of the $row in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the WARNING to dump
 # 
 sub DumpRowWarning( $$$ ) {
     my $row = $_[0];
     my $rowNum = $_[1];
     my $errStr = $_[2];
-    if( ($row eq "") && ($rowNum eq "" ) ) {
+	if( (($row eq "") || ($row eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
         PMSLogging::printLog( "! WARNING: $errStr\n" );
     } else {
         PMSLogging::printLog( "! WARNING: $errStr: [row $rowNum, '@$row']\n" );
@@ -410,8 +411,9 @@ sub DumpRowWarning( $$$ ) {
 # DumpRowError - dump an error message pertaining to the row of results being processed
 #
 # PASSED:
-#   $row - a reference to the row with the error (an array of fields)
-#   $rowNum - number of row in file
+#   $row - a reference to the row with the warning (an array of fields)
+#		Set to "" (or 0) if not known.
+#	$rowNum - the number of the $row in the result file.  Set to 0 (or "") if not known.
 #   $errStr - the error message
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 #
@@ -422,7 +424,7 @@ sub DumpRowError {
     my $console = $_[3];
     my $totalErr;
     my $numErrors = 0;
-    if( ($rowRef eq "") && ($rowNum eq "" ) ) {
+	if( (($row eq "") || ($row eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
         $totalErr = "! ERROR: $errStr\n";
     } else {
         (my $rowAsString, my $numNonEmptyFields) = PMSUtil::CleanAndConvertRowIntoString( $rowRef );
