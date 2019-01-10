@@ -9,6 +9,7 @@ use strict;
 use lib 'PMSPerlModules';
 require PMSLogging;
 require PMSConstants;
+require Devel::StackTrace;
 
 
 
@@ -320,7 +321,9 @@ sub ConvertToISOPrimary( $$$$ ) {
 	$month = "0$month" if( length( $month ) < 2 );
 	if( ($month > 12) || ($month < 1) ) {
 		PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid month). " .
-			"Changing to month '01'.  This needs to be corrected.", "" );
+			"Changing to month '01'.  This needs to be corrected.", 1 );
+my $trace = Devel::StackTrace->new;
+print $trace->as_string; # like carp
 		$month = "01";
 	}
 	$day = "0$day" if( length( $day ) < 2 );

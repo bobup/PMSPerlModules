@@ -16,7 +16,9 @@ our $DEFAULT_MISSING_DATE = '1940-01-01';	# A result date we won't normally find
 
 our $NO_RESULT_FILE_PROCESSING = 0;		# by default we will initialize the DB and process all result files.  Set to 1 to use the DB as it
 										# exists and not process result files.
-
+our $EMPTY_ACCUMULATED_POINTS = 0;		# by default we will NOT produce an "empty" Accumulated Points page, and we
+										#	expect data to be available for processing.  If set to 1 we will ignore
+										#	any data and generate an empty Accumulated Points page.
 our $SHOW_ONLY_SWIMMERS_WITH_POINTS = 1;				# true if we display only swimmers who earned points; false if we display all swimmers who swam
 
  #  need to export this correctly...

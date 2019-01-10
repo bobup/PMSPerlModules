@@ -128,6 +128,14 @@ sub ReadPMS_RSIDNData( $$ ) {
 			print "(Pre-read): Update of $rowsAffected rows succeeded:  '$query'\n" if( $debug > 0 );
 		}
 		
+		# Next, confirm the order of the columns:
+		if( my $msg = InvalidRSIND( $g_sheet1_ref ) ) {
+			PMSLogging::DumpError( 0, 0, "PMS_ImportPMSData.pm::ReadPMS_RSIDNData(): " .
+				"Invalid RSIND file: $msg", 1 );
+			die( "Failed to read the new RSIND file - ABORT!" );
+		}
+		
+		
 	    # Finally, pass through the sheet collecting initial data on all swimmers:
 	    # (skip first row because we assume it has row titles)
 	    my $rowNum;
@@ -153,7 +161,7 @@ sub ReadPMS_RSIDNData( $$ ) {
 	        my $regDate = $g_sheet1_ref->{"M$rowNum"};
 	        my $email = $g_sheet1_ref->{"N$rowNum"};
         	my $reg = uc($g_sheet1_ref->{"O$rowNum"});
-	        
+
         	# full reg number is in the spreadsheet
         	$reg = PMSUtil::GenerateCanonicalRegNum($reg); 
 	        # if the reg number is missing (older RSIDN files sometimes has a missing number) then construct it
@@ -275,6 +283,46 @@ sub ReadPMS_RSIDNData( $$ ) {
 } # end of ReadPMS_RSIDNData()
 
 
+# 		if( my $msg = InvalidRSIND( $g_sheet1_ref ) ) {
+# InvalidRSIND - analyze the passed RSIND file to confirm that it looks reasonable
+#
+# PASSED:
+#	$g_sheet1_ref - reference to the hashtable representing the RSIND sheet
+#
+# RETURNED:
+#	$msg - empty string if the RSIND file looks OK, a non-empty error string if it appears invalid
+#
+sub InvalidRSIND( $ ) {
+	my $g_sheet1_ref = $_[0];
+	my $msg = "";
+	my @columnHeadings = (
+		"ClubAbbr",
+		"SwimmerID",
+		"FirstName",
+		"MI",
+		"LastName",
+		"Address1",
+		"City",
+		"StateAbbr",
+		"Zip",
+		"Country",
+		"BirthDate",
+		"Sex",
+		"RegDate",
+		"EMailAddress",
+		"RegNumber"
+	);
+	
+	for( my $colNum = ord("A"); $colNum <= ord("O"); $colNum++ ) {
+		if( $g_sheet1_ref->{chr($colNum)."1"} ne $columnHeadings[$colNum-ord("A")] ) {
+			$msg = "'" . chr($colNum) . "' is '" . $g_sheet1_ref->{chr($colNum)."1"} .
+				"' but expected '" . $columnHeadings[$colNum-ord("A")] . "'";
+		}
+	}
+	
+	return $msg;
+		
+} # end of InvalidRSIND()
 
 
 #		$refreshRSIDNFile = RSINDFileIsNew( $simpleName, $yearBeingProcessed);
