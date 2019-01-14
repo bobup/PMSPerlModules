@@ -209,8 +209,9 @@ sub PrepareAndExecute {
 	my $qry = $_[1];
 	my $log = $_[2];
 	my $rv = 0;
+	my $sth = 0;
 	my $i;
-	my $status = "";			# assume no error
+	my $status = "x";			# assume no error
 	for( $i = 3; ; $i++ ) {
 		if( !defined( $_[$i] ) ) {
 			$i--;
@@ -225,23 +226,34 @@ sub PrepareAndExecute {
 	if( $log ne "" ) {
 		PMSLogging::DumpNote( "", "", "$log: $qry" );
 	}
-	my $sth = $dbh->prepare( $qry );
-	if( !$sth ) {
-    	$status = "Can't prepare: '$qry'\n";
-	} else {
-	    if( $i >= 3 ) {
-	# todo: need to fix this to be more general
-	        $rv = $sth->execute($_[3], $_[4] );
-	        if( !$rv ) { 
-	    		$status = "Can't execute-1: '$qry'\n";
-	        }
-	    } else {
-	        $rv = $sth->execute;
-	        if( !$rv ) { 
-	    		$status = "Can't execute-2: '$qry'\n";
-	        }
-	    }
-	}
+	
+	# NOTE: The following loop is here so that we can recover a lost database handle.
+	# Experience has shown that the DB handle may become stale and the following SELECT 
+	# will fail with this error:
+	#	DBD::mysql::st execute failed: Lost connection to MySQL server during query at....
+	# which is caused by:
+	#   DBD::mysql::db do failed: MySQL server has gone away at....
+	# This has only been seen on the PMS Linux web server.
+	for( my $tryCount=1; ($status ne "") && ($tryCount < 3); $tryCount++ ) {
+		$status = "";
+		$sth = $dbh->prepare( $qry );
+		if( !$sth ) {
+	    	$status = "Can't prepare: '$qry'\n";
+		} else {
+		    if( $i >= 3 ) {
+		# todo: need to fix this to be more general
+		        $rv = $sth->execute($_[3], $_[4] );
+		        if( !$rv ) { 
+		    		$status = "Can't execute-1: '$qry'\n";
+		        }
+		    } else {
+		        $rv = $sth->execute;
+		        if( !$rv ) { 
+		    		$status = "Can't execute-2: '$qry'\n";
+		        }
+		    }
+		}
+	} # end of for( ...
 	return( $sth, $rv, $status );
 } # end of PrepareAndExecute()
 
