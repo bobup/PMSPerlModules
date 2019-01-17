@@ -253,7 +253,17 @@ sub PrepareAndExecute {
 		        }
 		    }
 		}
+		if( $status ) {
+			# got an error - try to recover
+			PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retrying...)", 1);
+			PMS_MySqlSupport::CloseMySqlHandle();
+			$dbh = PMS_MySqlSupport::GetMySqlHandle();
+		}
 	} # end of for( ...
+	if( $status ) {
+		# got an error - failed to recover
+		PMSLogging::DumpError( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retry FAILED!)", 1);
+	}
 	return( $sth, $rv, $status );
 } # end of PrepareAndExecute()
 
