@@ -245,12 +245,14 @@ sub PrepareAndExecute {
 		# todo: need to fix this to be more general
 		        $rv = $sth->execute($_[3], $_[4] );
 		        if( !$rv ) { 
-		    		$status = "Can't execute-1: '$qry' ($sth->errstr)\n";
+		        	my $errStr = $sth->errstr;
+		    		$status = "Can't execute-1: '$qry' (error: '$errStr')\n";
 		        }
 		    } else {
 		        $rv = $sth->execute;
 		        if( !$rv ) { 
-		    		$status = "Can't execute-2: '$qry' ($sth->errstr)\n";
+		        	my $errStr = $sth->errstr;
+		    		$status = "Can't execute-2: '$qry' (error: '$errStr')\n";
 		        }
 		    }
 		}
