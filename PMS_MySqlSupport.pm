@@ -212,6 +212,7 @@ sub PrepareAndExecute {
 	my $sth = 0;
 	my $i;
 	my $status = "x";			# assume no error
+	my $weRetried = 0;			# we haven't had to retry...yet
 	for( $i = 3; ; $i++ ) {
 		if( !defined( $_[$i] ) ) {
 			$i--;
@@ -244,12 +245,12 @@ sub PrepareAndExecute {
 		# todo: need to fix this to be more general
 		        $rv = $sth->execute($_[3], $_[4] );
 		        if( !$rv ) { 
-		    		$status = "Can't execute-1: '$qry'\n";
+		    		$status = "Can't execute-1: '$qry' ($sth->errstr)\n";
 		        }
 		    } else {
 		        $rv = $sth->execute;
 		        if( !$rv ) { 
-		    		$status = "Can't execute-2: '$qry'\n";
+		    		$status = "Can't execute-2: '$qry' ($sth->errstr)\n";
 		        }
 		    }
 		}
@@ -258,11 +259,15 @@ sub PrepareAndExecute {
 			PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retrying...)", 1);
 			PMS_MySqlSupport::CloseMySqlHandle();
 			$dbh = PMS_MySqlSupport::GetMySqlHandle();
+			$weRetried++;
 		}
 	} # end of for( ...
 	if( $status ) {
 		# got an error - failed to recover
 		PMSLogging::DumpError( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retry FAILED!)", 1);
+	} elsif( $weRetried ) {
+		PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): We retried $weRetried " .
+			"times and it finally worked.", 1);
 	}
 	return( $sth, $rv, $status );
 } # end of PrepareAndExecute()
