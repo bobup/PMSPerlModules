@@ -1801,17 +1801,17 @@ sub GetListOfResults( $$$ ) {
 
 
 
-#			my($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN) = 
+#			my($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN, $email) = 
 #										PMS_MySqlSupport::GetSwimmersAddress( $rsidnId );
 sub GetSwimmersAddress( $ ) {
 	my $rsidnId = $_[0];
-	my($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN) = 
+	my($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN, $email) = 
 		("?unknown address?", "?unknown city?", "??", "00000", "??","?unknown first name",
-		"?unknown middle initial", "?unknown last name");
+		"?unknown middle initial", "?unknown last name", "?unknown email");
 	my $dbh = GetMySqlHandle();
 	my $yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
 
-	my $query = "SELECT Address1, City, State, Zip, Country, FirstName, MiddleInitial, LastName " .
+	my $query = "SELECT Address1, City, State, Zip, Country, FirstName, MiddleInitial, LastName, Email " .
 				"FROM RSIDN_$yearBeingProcessed WHERE RSIDNId = $rsidnId";
 	my($sth,$rv) = PrepareAndExecute($dbh, $query);
 
@@ -1830,8 +1830,9 @@ sub GetSwimmersAddress( $ ) {
 		$firstN = PMSUtil::trim( $resultHash->{'FirstName'} );
 		$middleI = PMSUtil::trim( $resultHash->{'MiddleInitial'} );
 		$lastN = PMSUtil::trim( $resultHash->{'LastName'} );
+		$email = PMSUtil::trim( $resultHash->{'Email'} );
 	}
-	return ($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN);
+	return ($address, $city, $state, $zip, $country, $firstN, $middleI, $lastN, $email);
 } # end of GetSwimmersAddress()
 
 
