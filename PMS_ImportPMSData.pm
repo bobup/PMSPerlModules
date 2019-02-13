@@ -76,6 +76,8 @@ sub ReadPMS_RSIDNData( $$ ) {
     ( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query );
 	if( defined(my $resultHash = $sth->fetchrow_hashref) ) {
 		$numRSIDNSwimmerRows = $resultHash->{'Count'};		# number of swimmers in RSIDN table
+# remove the following print once we're sure the "->Done reading $rowNum rows" log is working. (after Mar 30, 2019?)
+print "numRSIDNSwimmerRows = $numRSIDNSwimmerRows\n";
 	} else {
 		die "Error returned by fetchrow_hashref after SELECT COUNT(*) FROM $tableName";
 	}
@@ -274,8 +276,8 @@ sub ReadPMS_RSIDNData( $$ ) {
 		} else {
 			print "Update of $rowsAffected rows succeeded:  '$query'\n" if( $debug > 0 );
 		}
-
-	    print( "->Done reading $rowNum rows from our RSIDN file.\n" );
+		$rowNum -= 2;		# this is the real number of rows we read from the new RSIND file (not counting header row)
+	    print( "->Done reading $rowNum rows from our RSIDN file (replacing $numRSIDNSwimmerRows rows from previous RSIDN file.)\n" );
 	} else {
 		PMSLogging::PrintLog( "", "", "NO (we already have the data from: '$lastRSIDNFileName'; $numRSIDNSwimmerRows swimmers.)", 1 );
 	}
