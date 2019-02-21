@@ -117,6 +117,9 @@ sub PrintLogNoNL {
 #
 # DumpError - dump a ERROR to the log file, and optionally to the console
 #
+# SYNOPSIS:
+#	DumpError( $line, $lineNum, "error str", 1 );
+#
 # PASSED:
 #	$line - the result line from a result file being processed when this ERROR is dumped.
 #		Set to "" (or 0) if not known.
