@@ -662,18 +662,6 @@ sub ValidateAndCorrectSwimmerId {
 
 
 
-# Return M or W or "?" if we don't recognize the passed gender
-sub GenerateCanonicalGender_old( $ ) {
-	my $gender = lc($_[0]);
-	if( $gender =~ m/female|women|w|f|girl|g/ ) {
-	    $gender = "W";
-	} elsif( $gender =~ m/male|men|m|boy|b/ ) {
-	    $gender = "M";
-    } else {
-    	$gender = "?";
-    }
-    return $gender;
-} # end of GenerateCanonicalGender()
 
 # GenerateCanonicalGender - return the one letter gender designation (M or F) for the
 #	passed gender.  Return '?' if the passed gender isn't recognized.

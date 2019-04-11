@@ -7,6 +7,7 @@
 
 package PMS_ImportPMSData;
 
+use diagnostics;
 use strict;
 use Spreadsheet::Read;
 use Text::CSV_XS;
@@ -21,8 +22,12 @@ my $debug = 1;
 
 # Forward declaration....
 sub ReadPMS_RSIDNData( $$ );
+sub GetRSINDRow( $$$$$ );
 sub GetPMSTeams( $ );
 sub RSINDFileIsNew( $$ );
+
+# we allow 2 digit years but complain about it.  The generator of these data should know better!
+my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
 
 ####====================================================================================================================================
 ####====================================================================================================================================
@@ -76,8 +81,6 @@ sub ReadPMS_RSIDNData( $$ ) {
     ( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query );
 	if( defined(my $resultHash = $sth->fetchrow_hashref) ) {
 		$numRSIDNSwimmerRows = $resultHash->{'Count'};		# number of swimmers in RSIDN table
-# remove the following print once we're sure the "->Done reading $rowNum rows" log is working. (after Mar 30, 2019?)
-print "numRSIDNSwimmerRows = $numRSIDNSwimmerRows\n";
 	} else {
 		die "Error returned by fetchrow_hashref after SELECT COUNT(*) FROM $tableName";
 	}
@@ -108,7 +111,6 @@ print "numRSIDNSwimmerRows = $numRSIDNSwimmerRows\n";
 		}
 		( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE $tableName" );
 		
-		my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
 		PMSLogging::PrintLog( "", "", "Yes! reading '$filename'...", 1 );
 		# next, clear the RSIDN data in our meta data so if we don't complete the reading of this RSIDN file
 		# we will force the read of the RSIDN file the next time we run:
@@ -141,121 +143,26 @@ print "numRSIDNSwimmerRows = $numRSIDNSwimmerRows\n";
 	    # Finally, pass through the sheet collecting initial data on all swimmers:
 	    # (skip first row because we assume it has row titles)
 	    my $rowNum;
+	    my $rowRef = {};
 	    for( $rowNum = 2; $rowNum <= $numRowsInSpreadsheet; $rowNum++ ) {
 	    	if( ($rowNum % 1000) == 0 ) {
 	    		print "...working on row $rowNum...\n";
 	    	}
-	        my $club = uc($g_sheet1_ref->{"A$rowNum"});
-	        my $swimmerId = PMSUtil::GenerateCanonicalUSMSSwimmerId( $g_sheet1_ref->{"B$rowNum"} );
-	        my $first = $g_sheet1_ref->{"C$rowNum"};
-	        my $middle = $g_sheet1_ref->{"D$rowNum"};
-	        if( !defined( $middle ) ) {
-	        	$middle = "";
-	        }
-	        my $last = $g_sheet1_ref->{"E$rowNum"};
-	        my $address1 = $g_sheet1_ref->{"F$rowNum"};
-	        my $city = $g_sheet1_ref->{"G$rowNum"};
-	        my $state = $g_sheet1_ref->{"H$rowNum"};
-	        my $zip = $g_sheet1_ref->{"I$rowNum"};
-	        my $country = $g_sheet1_ref->{"J$rowNum"};
-		    my $dob = $g_sheet1_ref->{"K$rowNum"};
-		    my $gender = $g_sheet1_ref->{"L$rowNum"};
-	        my $regDate = $g_sheet1_ref->{"M$rowNum"};
-	        my $email = $g_sheet1_ref->{"N$rowNum"};
-        	my $reg = uc($g_sheet1_ref->{"O$rowNum"});
-
-        	# full reg number is in the spreadsheet
-        	$reg = PMSUtil::GenerateCanonicalRegNum($reg); 
-	        # if the reg number is missing (older RSIDN files sometimes has a missing number) then construct it
-	        # the best we can
-	        if( $reg eq $PMSConstants::INVALID_REGNUM ) {
-	        	my $yearDigit = $yearBeingProcessed;
-	        	$yearDigit =~ s/^...//;
-	        	$reg = "38${yearDigit}x-$swimmerId";		# e.g. 387x-12345
-	        }
-	        
-	        # sanity check:  $swimmerId must be last part of reg number.  If the swimmerId isn't
-	        # consistent with the regnum then we have a choice:  ignore one of them and construct
-	        # it from the other.
-	        my $temp = $reg;
-	        $temp =~ s/^.*-//;
-	        
-	        if( $temp ne $swimmerId ) {
-			    # WARNING:  the supplied regnum and supplied swimmerid are not consistent!
-		        if(0) {
-			        # execute this code if we want to ignore the supplied regnum and instead construct it from the
-			        # supplied swimmerId
-		        	my $newReg = $reg;
-		        	$newReg =~ s/-.*$/-$swimmerId/;
-		        	PMSLogging::DumpError( "", $rowNum, "PMS_RSIDNData::ReadPMS_RSIDNData(): swimmerId ($swimmerId) " .
-		        		"isn't consistent with their reg number ($reg).\n" .
-		        		"  Changing reg number to $newReg.  last=$last, first=$first, club=$club");
-		        	$reg = $newReg;
-	        	} else {
-			        # execute this code if we want to ignore the supplied swimmerId and instead construct it from the
-			        # supplied regnum
-		        	my $newSwimmerId = $reg;
-		        	$newSwimmerId =~ s/^.*-//;
-		        	PMSLogging::DumpError( "", $rowNum, "PMS_RSIDNData::ReadPMS_RSIDNData(): swimmerId ($swimmerId) " .
-		        		"isn't consistent with their reg number ($reg).\n" .
-		        		"  Changing swimmerId to $newSwimmerId.  last=$last, first=$first, club=$club");
-		        	$swimmerId = $newSwimmerId;
-	        	}
-	        }
-	        
-	        # validate and correct (if necessary) the swimmerId and regnum
-	        $swimmerId = PMSUtil::ValidateAndCorrectSwimmerId( $swimmerId, "PMS_RSIDNData::ReadPMS_RSIDNData()",
-	        	$yearBeingProcessed );
-	        $reg = PMSUtil::ValidateAndCorrectSwimmerId( $reg, "PMS_RSIDNData::ReadPMS_RSIDNData()",
-	        	$yearBeingProcessed );
-	        
-	        
-		    # convert the $gender into our own canonical form:
-		    $gender = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $gender );
-		    
-    		# convert birthdate into mysql format
-    		#  mm/dd/yyyy -> yyyy-mm-dd
-    		my $mysqlDOB = PMSUtil::GenerateCanonicalDOB($dob);
-    		# same for regdate
-    		my $mysqlRegDate = PMSUtil::GenerateCanonicalDOB($regDate);
-    		my $year = $dob;
-    		my $month = $dob;
-    		my $day = $dob;
-    		$month =~ s,/.*$,,;
-    		$day =~ s,^[^/]+/,,;
-    		$day =~ s,/.*$,,;
-    		$year =~ s,^.*/,,;
-    		# handle 2 digit years:
-    		if( $year < 100 ) {
-    			$year += 1900;
-    			if( ! $foundIllegalBirthdate ) {
-    				# we need to display an error, but only once
-    				$foundIllegalBirthdate++;
-    				my $errStr = "Bad birthdate found in RSIDN file in row # " .
-    					"$rowNum: dob='$dob'.  Should be a 4 digit year; we'll assume 1900+";
-    				PMSLogging::DumpWarning( "", "", $errStr );
-    				print "\nPMS_ImportPMSData::ReadPMS_RSIDNData(): $errStr\n";	    				
-    			}
-    		}
-    		$mysqlDOB = $year . "-" . $month . "-" . $day;
-    		# be careful of any value containing characters that can confuse the mySql parser
-    		$club = PMS_MySqlSupport::MySqlEscape( $club );
-    		$first = PMS_MySqlSupport::MySqlEscape( $first );
-    		$middle = PMS_MySqlSupport::MySqlEscape( $middle );
-    		$last = PMS_MySqlSupport::MySqlEscape( $last );
-    		$address1 = PMS_MySqlSupport::MySqlEscape( $address1 );
-    		$city = PMS_MySqlSupport::MySqlEscape( $city );
-    		$email = PMS_MySqlSupport::MySqlEscape( $email );
+    		
+	    	GetRSINDRow( $rowRef, $rowNum, $g_sheet1_ref, $yearBeingProcessed, $filename );
+	
     		# now, get to work...
     		($sth,  $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,
     			"INSERT INTO $tableName " .
     			"(FirstName, MiddleInitial, LastName, RegNum, USMSSwimmerId, " .
     			"RegisteredTeamInitialsStr, Gender, DateOfBirth, " .
     			"RegDate, Email, Address1, City, State, Zip, Country) " .
-    			"VALUES (\"$first\", \"$middle\", \"$last\", \"$reg\", \"$swimmerId\", " .
-    			"\"$club\", \"$gender\", \"$mysqlDOB\", " .
-    			"\"$mysqlRegDate\", \"$email\", \"$address1\", \"$city\", \"$state\", " .
-    			"\"$zip\", \"$country\" " .
+    			"VALUES (\"$rowRef->{'first'}\", \"$rowRef->{'middle'}\", \"$rowRef->{'last'}\", " .
+    			"\"$rowRef->{'reg'}\", \"$rowRef->{'swimmerId'}\", " .
+    			"\"$rowRef->{'club'}\", \"$rowRef->{'gender'}\", \"$rowRef->{'dob'}\", " .
+    			"\"$rowRef->{'regDate'}\", \"$rowRef->{'email'}\", \"$rowRef->{'address1'}\", " .
+    			"\"$rowRef->{'city'}\", \"$rowRef->{'state'}\", " .
+    			"\"$rowRef->{'zip'}\", \"$rowRef->{'country'}\" " .
     			")" );
 	    }
 	    # we're done - updata our meta data
@@ -277,12 +184,165 @@ print "numRSIDNSwimmerRows = $numRSIDNSwimmerRows\n";
 			print "Update of $rowsAffected rows succeeded:  '$query'\n" if( $debug > 0 );
 		}
 		$rowNum -= 2;		# this is the real number of rows we read from the new RSIND file (not counting header row)
-	    print( "->Done reading $rowNum rows from our RSIDN file (replacing $numRSIDNSwimmerRows rows from previous RSIDN file.)\n" );
+		PMSLogging::PrintLog( "", "", "->Done reading $rowNum rows from our RSIDN file (replacing " .
+			"$numRSIDNSwimmerRows rows from previous RSIDN file.)", 1 );
 	} else {
 		PMSLogging::PrintLog( "", "", "NO (we already have the data from: '$lastRSIDNFileName'; $numRSIDNSwimmerRows swimmers.)", 1 );
 	}
     
 } # end of ReadPMS_RSIDNData()
+
+
+
+#	    	GetRSINDRow( $rowRef, $rowNum, $g_sheet1_ref, $yearBeingProcessed, $filename );
+# GetRSINDRow -  get a row from the spreadsheet and validate each field.
+#
+# PASSED:
+#	$rowRef - reference to a hash into which the fields of the spreadsheet are stored
+#	$rowNum - the row number in the spreadsheet
+#	$g_sheet1_ref - reference to the spreadsheet
+#	$yearBeingProcessed
+#
+# RETURNED:
+#	n/a
+#
+# NOTES:
+#	Any problems discovered with the data will result in a log message.
+#
+sub GetRSINDRow( $$$$$ ) {
+	my ($rowRef, $rowNum, $g_sheet1_ref, $yearBeingProcessed, $filename) = @_;
+	# empty our hash of data:
+	for (keys %$rowRef) {
+		delete $rowRef->{$_};
+	}
+	# extract data from the spreadsheet:
+	$rowRef->{'club'} = uc($g_sheet1_ref->{"A$rowNum"});
+	$rowRef->{'swimmerId'} = PMSUtil::GenerateCanonicalUSMSSwimmerId( $g_sheet1_ref->{"B$rowNum"} );
+	$rowRef->{'first'} = $g_sheet1_ref->{"C$rowNum"};
+	$rowRef->{'middle'} = $g_sheet1_ref->{"D$rowNum"};
+	if( !defined( $rowRef->{'middle'} ) ) {
+		$rowRef->{'middle'} = "";
+	}
+	$rowRef->{'last'} = $g_sheet1_ref->{"E$rowNum"};
+	$rowRef->{'address1'} = $g_sheet1_ref->{"F$rowNum"};
+	$rowRef->{'city'} = $g_sheet1_ref->{"G$rowNum"};
+	$rowRef->{'state'} = $g_sheet1_ref->{"H$rowNum"};
+	$rowRef->{'zip'} = $g_sheet1_ref->{"I$rowNum"};
+	$rowRef->{'country'} = $g_sheet1_ref->{"J$rowNum"};
+	$rowRef->{'dob'} = $g_sheet1_ref->{"K$rowNum"};
+	$rowRef->{'gender'} = $g_sheet1_ref->{"L$rowNum"};
+	$rowRef->{'regDate'} = $g_sheet1_ref->{"M$rowNum"};
+	$rowRef->{'email'} = $g_sheet1_ref->{"N$rowNum"};
+	$rowRef->{'reg'} = uc($g_sheet1_ref->{"O$rowNum"});
+	
+	# NOW for validation and correction:
+	if( ($rowRef->{'club'} eq "") || (length( $rowRef->{'club'} ) > 10) ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid club." );
+	}
+	if( ($rowRef->{'first'} eq "") ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid (empty) first name." );
+	}
+	if( ($rowRef->{'last'} eq "") ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid (empty) last name." );
+	}
+	if( $rowRef->{'email'} !~ m/^[^@]+@.+\..+/ ) {
+		# an email adderss is not really required but we'll check to make sure it's sane anyway...
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid email " .
+		"address (" .  $rowRef->{'email'} . ")" );
+	}
+	
+	
+	# full reg number is in the spreadsheet
+	$rowRef->{'reg'} = PMSUtil::GenerateCanonicalRegNum($rowRef->{'reg'}); 
+	# if the reg number is missing (older RSIDN files sometimes has a missing number) then construct it
+	# the best we can
+	if( $rowRef->{'reg'} eq $PMSConstants::INVALID_REGNUM ) {
+		my $yearDigit = $yearBeingProcessed;
+		$yearDigit =~ s/^...//;
+		$rowRef->{'reg'} = "38${yearDigit}x-" . $rowRef->{'swimmerId'};		# e.g. 387x-12345
+	}
+	
+	# sanity check:  $swimmerId must be last part of reg number.  If the swimmerId isn't
+	# consistent with the regnum then we have a choice:  ignore one of them and construct
+	# it from the other.
+	my $temp = $rowRef->{'reg'};
+	$temp =~ s/^.*-//;
+	
+	if( $temp ne $rowRef->{'swimmerId'} ) {
+		# WARNING:  the supplied regnum and supplied swimmerid are not consistent!
+		if(0) {
+			# execute this code if we want to ignore the supplied regnum and instead construct it from the
+			# supplied swimmerId
+			my $newReg = $rowRef->{'reg'};
+			$newReg =~ s/-.*$/-$rowRef->{'swimmerId'}/;
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): swimmerId (" .
+				$rowRef->{'swimmerId'} . ") " .
+				"isn't consistent with their reg number (" . $rowRef->{'reg'} . ").\n" .
+				"  Changing reg number to $newReg.  last=$rowRef->{'last'}, " .
+				"first=$rowRef->{'first'}, club=$rowRef->{'club'}");
+			$rowRef->{'reg'} = $newReg;
+		} else {
+			# execute this code if we want to ignore the supplied swimmerId and instead construct it from the
+			# supplied regnum
+			my $newSwimmerId = $rowRef->{'reg'};
+			$newSwimmerId =~ s/^.*-//;
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): swimmerId " .
+				($rowRef->{'swimmerId'}) .
+				" isn't consistent with their reg number ($rowRef->{'reg'}).\n" .
+				"  Changing swimmerId to $newSwimmerId.  last=$rowRef->{'last'}, " .
+				"first=$rowRef->{'first'}, club=$rowRef->{'club'}");
+			$rowRef->{'swimmerId'} = $newSwimmerId;
+		}
+	}
+	
+	# validate and correct (if necessary) the swimmerId and regnum
+	$rowRef->{'swimmerId'} = PMSUtil::ValidateAndCorrectSwimmerId( $rowRef->{'swimmerId'},
+		"PMS_ImportPMSData::ReadPMS_RSIDNData()", $yearBeingProcessed );
+	$rowRef->{'reg'} = PMSUtil::ValidateAndCorrectSwimmerId( $rowRef->{'reg'}, 
+		"PMS_ImportPMSData::ReadPMS_RSIDNData()", $yearBeingProcessed );
+	
+	# convert the $gender into our own canonical form:
+	$rowRef->{'gender'} = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $rowRef->{'gender'} );
+	if( $rowRef->{'gender'} eq "?" ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid gender." );
+	}
+	
+	# convert birthdate into mysql format
+	#  mm/dd/yyyy -> yyyy-mm-dd
+	my $mysqlDOB = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});
+	# same for regdate
+	$rowRef->{'regDate'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'regDate'});
+	my $year = $rowRef->{'dob'};
+	my $month = $rowRef->{'dob'};
+	my $day = $rowRef->{'dob'};
+	$month =~ s,/.*$,,;
+	$day =~ s,^[^/]+/,,;
+	$day =~ s,/.*$,,;
+	$year =~ s,^.*/,,;
+	# handle 2 digit years:
+	if( $year < 100 ) {
+		$year += 1900;
+		if( ! $foundIllegalBirthdate ) {
+			# we need to display an error, but only once
+			$foundIllegalBirthdate++;
+			my $errStr = "Bad birthdate found in RSIDN file in row # " .
+				"$rowNum: dob='$rowRef->{'dob'}'.  Should be a 4 digit year; we'll assume 1900+";
+			PMSLogging::DumpWarning( "", "", $errStr );
+			print "\nPMS_ImportPMSData::ReadPMS_RSIDNData(): $errStr\n";	    				
+		}
+	}
+	$rowRef->{'dob'} = $year . "-" . $month . "-" . $day;
+	# be careful of any value containing characters that can confuse the mySql parser
+	$rowRef->{'club'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'club'} );
+	$rowRef->{'first'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'first'} );
+	$rowRef->{'middle'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'middle'} );
+	$rowRef->{'last'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'last'} );
+	$rowRef->{'address1'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'address1'} );
+	$rowRef->{'city'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'city'} );
+	$rowRef->{'email'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'email'} );
+
+} # end of GetRSINDRow()
+    		
 
 
 # 		if( my $msg = InvalidRSIND( $g_sheet1_ref ) ) {
@@ -611,7 +671,7 @@ sub GetMergedMembers($$) {
 		# our MergedMembers table is either empty or out of date - DROP it and then populate it
 		( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE MergedMembers" );
 		
-		my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
+#		my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
 		PMSLogging::PrintLog( "", "", "Yes! reading '$filename'...", 1 );
 	    # read the spreadsheet
 	    my $g_ref = ReadData( $filename );
