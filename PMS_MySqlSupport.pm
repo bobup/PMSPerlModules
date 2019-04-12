@@ -1749,9 +1749,11 @@ sub GetNumLoggedInvalidSwimmers() {
 # process the passed string, escaping quotes and backslashes
 sub MySqlEscape( $ ) {
 	my $string = $_[0];
-	$string =~ s/"/\\"/g;
-	$string =~ s/'/\\'/g;
-	$string =~ s/\\/\\/g;
+	if( defined( $string ) ) {
+		$string =~ s/"/\\"/g;
+		$string =~ s/'/\\'/g;
+		$string =~ s/\\/\\/g;
+	}
 	return $string;
 } # end of MySqlEscape()
 

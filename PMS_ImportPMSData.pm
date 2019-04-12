@@ -352,7 +352,7 @@ sub GetRSINDRow( $$$$$ ) {
 	
 	# convert birthdate into mysql format
 	#  mm/dd/yyyy -> yyyy-mm-dd
-	my $mysqlDOB = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});
+	$rowRef->{'dob'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});
 	# same for regdate
 	$rowRef->{'regDate'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'regDate'});
 	my $year = $rowRef->{'dob'};
