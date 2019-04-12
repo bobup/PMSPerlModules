@@ -236,21 +236,38 @@ sub GetRSINDRow( $$$$$ ) {
 	$rowRef->{'reg'} = uc($g_sheet1_ref->{"O$rowNum"});
 	
 	# NOW for validation and correction:
-	if( ($rowRef->{'club'} eq "") || (length( $rowRef->{'club'} ) > 10) ) {
+	if( ! defined $rowRef->{'club'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined club." );
+	} elsif( ($rowRef->{'club'} eq "") || (length( $rowRef->{'club'} ) > 10) ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid club." );
 	}
-	if( ($rowRef->{'first'} eq "") ) {
+	if( ! defined $rowRef->{'swimmerId'} ) {
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined swimmerId." );
+	}	
+	
+	
+	
+	
+	if( ! defined $rowRef->{'first'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined first." );
+	} elsif( ($rowRef->{'first'} eq "") ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid (empty) first name." );
 	}
-	if( ($rowRef->{'last'} eq "") ) {
+	if( ! defined $rowRef->{'last'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined last." );
+	} elsif( ($rowRef->{'last'} eq "") ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid (empty) last name." );
 	}
-	if( $rowRef->{'email'} !~ m/^[^@]+@.+\..+/ ) {
+	if( ! defined $rowRef->{'email'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined email." );
+	} elsif( $rowRef->{'email'} !~ m/^[^@]+@.+\..+/ ) {
 		# an email adderss is not really required but we'll check to make sure it's sane anyway...
 		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid email " .
 		"address (" .  $rowRef->{'email'} . ")" );
 	}
-	
+	if( ! defined $rowRef->{'email'} ) {
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined email." );
+	}	
 	
 	# full reg number is in the spreadsheet
 	$rowRef->{'reg'} = PMSUtil::GenerateCanonicalRegNum($rowRef->{'reg'}); 
