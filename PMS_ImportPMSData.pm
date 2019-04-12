@@ -346,6 +346,7 @@ sub GetRSINDRow( $$$$$ ) {
 	
 	# convert the $gender into our own canonical form:
 	$rowRef->{'gender'} = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $rowRef->{'gender'} );
+print "gender is now " . $rowRef->{'gender'} . "\n";
 	if( $rowRef->{'gender'} eq "?" ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid gender." );
 	}

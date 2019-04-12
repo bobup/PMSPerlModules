@@ -669,7 +669,7 @@ sub GenerateCanonicalGender($$$) {
 	my($fileName, $lineNum) = @_;
 	my $passedGender = $_[2];
 	if( !defined $passedGender ) {
-		$passedGender = '?';		# invalid gender - caught below
+		$passedGender = '(undefined)';		# invalid gender - caught below
 	} else {
 		$passedGender = uc($passedGender);
 	}
