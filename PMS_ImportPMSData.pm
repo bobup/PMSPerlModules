@@ -283,7 +283,7 @@ sub GetRSINDRow( $$$$$ ) {
 		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) zip.", 1 );
 	}
 	if( ! defined $rowRef->{'country'} ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined zip.", 1 );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined country.", 1 );
 	} elsif( ($rowRef->{'country'} eq "") ) {
 		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) country.", 1 );
 	}
@@ -358,10 +358,10 @@ sub GetRSINDRow( $$$$$ ) {
 	my $year = $rowRef->{'dob'};
 	my $month = $rowRef->{'dob'};
 	my $day = $rowRef->{'dob'};
-	$month =~ s,/.*$,,;
-	$day =~ s,^[^/]+/,,;
-	$day =~ s,/.*$,,;
-	$year =~ s,^.*/,,;
+	$month =~ s,[-/].*$,,;
+	$day =~ s,^[^/-]+[-/],,;
+	$day =~ s,[-/].*$,,;
+	$year =~ s,^.*[-/],,;
 	# handle 2 digit years:
 	if( $year < 100 ) {
 		$year += 1900;
