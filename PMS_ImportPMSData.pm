@@ -216,7 +216,12 @@ sub GetRSINDRow( $$$$$ ) {
 		delete $rowRef->{$_};
 	}
 	# extract data from the spreadsheet:
-	$rowRef->{'club'} = uc($g_sheet1_ref->{"A$rowNum"});
+	$rowRef->{'club'} = $g_sheet1_ref->{"A$rowNum"};
+	if( ! defined $rowRef->{'club'} ) {
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined club.", 1 );
+	} else {
+		$rowRef->{'club'} = uc($rowRef->{'club'});
+	}	
 	$rowRef->{'swimmerId'} = PMSUtil::GenerateCanonicalUSMSSwimmerId( $g_sheet1_ref->{"B$rowNum"} );
 	$rowRef->{'first'} = $g_sheet1_ref->{"C$rowNum"};
 	$rowRef->{'middle'} = $g_sheet1_ref->{"D$rowNum"};
@@ -233,41 +238,62 @@ sub GetRSINDRow( $$$$$ ) {
 	$rowRef->{'gender'} = $g_sheet1_ref->{"L$rowNum"};
 	$rowRef->{'regDate'} = $g_sheet1_ref->{"M$rowNum"};
 	$rowRef->{'email'} = $g_sheet1_ref->{"N$rowNum"};
-	$rowRef->{'reg'} = uc($g_sheet1_ref->{"O$rowNum"});
+	$rowRef->{'reg'} = $g_sheet1_ref->{"O$rowNum"};
+	if( ! defined $rowRef->{'reg'} ) {
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined reg.", 1 );
+	} else {
+		$rowRef->{'reg'} = uc($rowRef->{'reg'});
+	}	
 	
 	# NOW for validation and correction:
-	if( ! defined $rowRef->{'club'} ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined club." );
-	} elsif( ($rowRef->{'club'} eq "") || (length( $rowRef->{'club'} ) > 10) ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid club." );
+	if( ($rowRef->{'club'} eq "") || (length( $rowRef->{'club'} ) > 10) ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid club.", 1 );
 	}
 	if( ! defined $rowRef->{'swimmerId'} ) {
-			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined swimmerId." );
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined swimmerId.", 1 );
 	}	
-	
-	
-	
-	
 	if( ! defined $rowRef->{'first'} ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined first." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined first name.", 1 );
 	} elsif( ($rowRef->{'first'} eq "") ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid (empty) first name." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) first name.", 1 );
 	}
 	if( ! defined $rowRef->{'last'} ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined last." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined last name.", 1 );
 	} elsif( ($rowRef->{'last'} eq "") ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid (empty) last name." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) last name.", 1 );
+	}
+	if( ! defined $rowRef->{'address1'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined address.", 1 );
+	} elsif( ($rowRef->{'address1'} eq "") ) {
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) address.", 1 );
+	}
+	if( ! defined $rowRef->{'city'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined city.", 1 );
+	} elsif( ($rowRef->{'city'} eq "") ) {
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) city.", 1 );
+	}
+	if( ! defined $rowRef->{'state'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined state.", 1 );
+	} elsif( ($rowRef->{'state'} eq "") ) {
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) state.", 1 );
+	}
+	if( ! defined $rowRef->{'zip'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined zip.", 1 );
+	} elsif( ($rowRef->{'zip'} eq "") ) {
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) zip.", 1 );
+	}
+	if( ! defined $rowRef->{'country'} ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined zip.", 1 );
+	} elsif( ($rowRef->{'country'} eq "") ) {
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid (empty) country.", 1 );
 	}
 	if( ! defined $rowRef->{'email'} ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined email." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined email.", 1 );
 	} elsif( $rowRef->{'email'} !~ m/^[^@]+@.+\..+/ ) {
 		# an email adderss is not really required but we'll check to make sure it's sane anyway...
-		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid email " .
+		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid email " .
 		"address (" .  $rowRef->{'email'} . ")" );
 	}
-	if( ! defined $rowRef->{'email'} ) {
-			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): undefined email." );
-	}	
 	
 	# full reg number is in the spreadsheet
 	$rowRef->{'reg'} = PMSUtil::GenerateCanonicalRegNum($rowRef->{'reg'}); 
@@ -292,7 +318,7 @@ sub GetRSINDRow( $$$$$ ) {
 			# supplied swimmerId
 			my $newReg = $rowRef->{'reg'};
 			$newReg =~ s/-.*$/-$rowRef->{'swimmerId'}/;
-			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): swimmerId (" .
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): swimmerId (" .
 				$rowRef->{'swimmerId'} . ") " .
 				"isn't consistent with their reg number (" . $rowRef->{'reg'} . ").\n" .
 				"  Changing reg number to $newReg.  last=$rowRef->{'last'}, " .
@@ -303,7 +329,7 @@ sub GetRSINDRow( $$$$$ ) {
 			# supplied regnum
 			my $newSwimmerId = $rowRef->{'reg'};
 			$newSwimmerId =~ s/^.*-//;
-			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): swimmerId " .
+			PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): swimmerId " .
 				($rowRef->{'swimmerId'}) .
 				" isn't consistent with their reg number ($rowRef->{'reg'}).\n" .
 				"  Changing swimmerId to $newSwimmerId.  last=$rowRef->{'last'}, " .
@@ -314,14 +340,14 @@ sub GetRSINDRow( $$$$$ ) {
 	
 	# validate and correct (if necessary) the swimmerId and regnum
 	$rowRef->{'swimmerId'} = PMSUtil::ValidateAndCorrectSwimmerId( $rowRef->{'swimmerId'},
-		"PMS_ImportPMSData::ReadPMS_RSIDNData()", $yearBeingProcessed );
+		"PMS_ImportPMSData::GetRSINDRow()", $yearBeingProcessed );
 	$rowRef->{'reg'} = PMSUtil::ValidateAndCorrectSwimmerId( $rowRef->{'reg'}, 
-		"PMS_ImportPMSData::ReadPMS_RSIDNData()", $yearBeingProcessed );
+		"PMS_ImportPMSData::GetRSINDRow()", $yearBeingProcessed );
 	
 	# convert the $gender into our own canonical form:
 	$rowRef->{'gender'} = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $rowRef->{'gender'} );
 	if( $rowRef->{'gender'} eq "?" ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::ReadPMS_RSIDNData(): Invalid gender." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid gender." );
 	}
 	
 	# convert birthdate into mysql format
@@ -345,7 +371,7 @@ sub GetRSINDRow( $$$$$ ) {
 			my $errStr = "Bad birthdate found in RSIDN file in row # " .
 				"$rowNum: dob='$rowRef->{'dob'}'.  Should be a 4 digit year; we'll assume 1900+";
 			PMSLogging::DumpWarning( "", "", $errStr );
-			print "\nPMS_ImportPMSData::ReadPMS_RSIDNData(): $errStr\n";	    				
+			print "\nPMS_ImportPMSData::GetRSINDRow(): $errStr\n";	    				
 		}
 	}
 	$rowRef->{'dob'} = $year . "-" . $month . "-" . $day;
@@ -356,6 +382,9 @@ sub GetRSINDRow( $$$$$ ) {
 	$rowRef->{'last'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'last'} );
 	$rowRef->{'address1'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'address1'} );
 	$rowRef->{'city'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'city'} );
+	$rowRef->{'state'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'state'} );
+	$rowRef->{'zip'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'zip'} );
+	$rowRef->{'country'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'country'} );
 	$rowRef->{'email'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'email'} );
 
 } # end of GetRSINDRow()

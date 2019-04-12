@@ -667,7 +667,12 @@ sub ValidateAndCorrectSwimmerId {
 #	passed gender.  Return '?' if the passed gender isn't recognized.
 sub GenerateCanonicalGender($$$) {
 	my($fileName, $lineNum) = @_;
-	my $passedGender = uc($_[2]);
+	my $passedGender = $_[2];
+	if( !defined $passedGender ) {
+		$passedGender = '?';		# invalid gender - caught below
+	} else {
+		$passedGender = uc($passedGender);
+	}
 	$passedGender =~ m/^(.)/;
 	my $result = $1;			# default is first letter of gender term (e.g. 'W' for 'Women')
 	$result = 'F' if( $result eq 'W');
