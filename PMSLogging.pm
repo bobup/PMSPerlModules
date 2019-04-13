@@ -130,12 +130,17 @@ sub PrintLogNoNL {
 sub DumpError {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalErr;
+    my $detail = "";
 	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $totalErr = "!! ERROR: $errStr\n";
+        $detail = "";
+	} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
+		$detail = "['$line']";
+	} elsif( (($line eq "") || ($line eq "0")) ) {
+		$detail = "[line $lineNum]";
     } else {
-        $totalErr = "! ERROR: $errStr: [line $lineNum, '$line']\n";
+        $detail = "[line $lineNum, '$line']";
     }
-    
+    $totalErr = "! ERROR: $errStr: $detail\n";
     printLog( $totalErr );
 	print $totalErr . "\n" if( $console );
 	$numErrorsLogged++;
@@ -156,14 +161,19 @@ sub DumpError {
 sub DumpWarning {
     my ( $line, $lineNum, $errStr, $console ) = @_;
     my $totalWarn;
+    my $detail = "";
 	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $totalWarn = "! WARNING: $errStr\n";
+        $detail = "";
+	} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
+		$detail = "['$line']";
+	} elsif( (($line eq "") || ($line eq "0")) ) {
+		$detail = "[line $lineNum]";
     } else {
-        $totalWarn = "! WARNING: $errStr: [line $lineNum, '$line']\n";
+        $detail = "[line $lineNum, '$line']";
     }
+    $totalWarn = "! ERROR: $errStr: $detail\n";
     printLog( $totalWarn );
 	print $totalWarn if( $console );
-
 } # end of DumpWarning
 
 
@@ -180,15 +190,21 @@ sub DumpWarning {
 # 
 sub DumpNote {
     my ( $line, $lineNum, $errStr, $console ) = @_;
-	    my $totalErr;
+	my $totalNote;
+	
+	my $detail = "";
 	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-	        $totalErr = "NOTE: $errStr\n";
-	    } else {
-	        $totalErr = "NOTE: $errStr: [line $lineNum, '$line']\n";
-	    }
-	    printLog $totalErr;
-		print $totalErr if( $console );
-
+        $detail = "";
+	} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
+		$detail = "['$line']";
+	} elsif( (($line eq "") || ($line eq "0")) ) {
+		$detail = "[line $lineNum]";
+    } else {
+        $detail = "[line $lineNum, '$line']";
+    }
+    $totalNote = "! ERROR: $errStr: $detail\n";
+    printLog $totalNote;
+	print $totalNote if( $console );
 } # end of DumpNote
 
 

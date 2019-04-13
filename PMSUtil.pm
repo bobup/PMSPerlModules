@@ -665,6 +665,8 @@ sub ValidateAndCorrectSwimmerId {
 
 # GenerateCanonicalGender - return the one letter gender designation (M or F) for the
 #	passed gender.  Return '?' if the passed gender isn't recognized.
+# Note:  errors are printed, not logged, because this routine is designed to be used prior
+#	to initialization of our log file.
 sub GenerateCanonicalGender($$$) {
 	my($fileName, $lineNum) = @_;
 	my $passedGender = $_[2];
@@ -679,8 +681,8 @@ sub GenerateCanonicalGender($$$) {
 	$result = 'F' if( $result eq 'G');
 	$result = 'M' if( $result eq 'B');
 	if( ($result ne 'M') && ($result ne 'F') ) {
-		print "GenerateCanonicalGender: ($fileName: $lineNum) returning illegal value '$result' when passed '$passedGender'\n";
 		$result = "?";
+		print "GenerateCanonicalGender: (error in '$fileName', line $lineNum): returning illegal value '$result' when passed '$passedGender'\n";
 	}
 	return $result;
 } # end of GenerateCononicalGender()

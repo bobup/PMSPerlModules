@@ -363,6 +363,7 @@ sub GetRSINDRow( $$$$$ ) {
 	$day =~ s,[-/].*$,,;
 	$year =~ s,^.*[-/],,;
 	# handle 2 digit years:
+print "year = '$year'\n";
 	if( $year < 100 ) {
 		$year += 1900;
 		if( ! $foundIllegalBirthdate ) {
@@ -371,7 +372,6 @@ sub GetRSINDRow( $$$$$ ) {
 			my $errStr = "Bad birthdate found in RSIDN file in row # " .
 				"$rowNum: dob='$rowRef->{'dob'}', year='$year'.  Should be a 4 digit year; we'll assume 1900+";
 			PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): $errStr", 1 );
-			print "\nPMS_ImportPMSData::GetRSINDRow(): $errStr\n";	    				
 		}
 	}
 	$rowRef->{'dob'} = $year . "-" . $month . "-" . $day;
