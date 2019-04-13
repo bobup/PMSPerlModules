@@ -347,15 +347,24 @@ print $trace->as_string; # like carp
 		my $twoDigitYear = $year;
 		my ($sec,$min,$hour,$mday,$mon,$currentYear,$wday,$yday,$isdst) = localtime();
 		$year += 2000;		# convert '83' to '2083', or '02' to '2002'
+		# Here is the problem:  Pretend the current year is 2019.  Above we convert the year
+		# '53' to 2053 which is probably a bad assumption (especially if we're talking
+		# about a birthdate.)  So since we have to assume something in order to come up with 
+		# a reasonable date we'll assume a date is not too far in the past (e.g. '01' is 
+		# probably not 1901 if it's a birthdate) and not in the future (i.e. not beyond
+		# the current year, 2019 in this example.)  Note that most dates we're dealing with are
+		# birthdates and dates of swims and registraton dates.  Trouble is:  what to do with 
+		# '01'?  2001 is a reasonable birthdate of a masters swimmer, and 1901 is unlikely, so
+		# the better assumption would be 2001.  What about '04'?  2004 is not a valid 
+		# birthdate for a masters swimmer, so we have to assume 1904?  Not if it's the date
+		# of a swim record.  So the code below just punts; the better solution is to
+		# insist that data we process uses 4 digit years everywhere, and for our sake we
+		# pass along the "meaning" of the date (e.g. birthdate or event date) to our date 
+		# handling code so we can make more intelligent decisions.
 		if( $year > $yearBeingProcessed ) {
 			# oops - this can't be right!  try again...
 			$year = $twoDigitYear + 1900;		# convert '83' to '1983', or '02' to '1902'
 		}
-		# now, we make an assumption:  they are not older than 90 years.  Ageist...
-#		if( ($currentYear - $year) > 90 ) {
-#			# OK, assume they were born in the 21st century:
-#			$year += 100;
-#		}
 		if( !$twoDigitYearSeen ) {
 			PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
 				"Changing '$twoDigitYear' to '$year'.  This needs to be corrected (this message " .

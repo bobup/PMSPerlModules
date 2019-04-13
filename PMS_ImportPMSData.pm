@@ -352,18 +352,18 @@ sub GetRSINDRow( $$$$$ ) {
 	
 	# convert birthdate into mysql format
 	#  mm/dd/yyyy -> yyyy-mm-dd
-	$rowRef->{'dob'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});
+	$rowRef->{'dob'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});	#convert m[m]/d[d]/yyyy into yyyy-mm-dd
 	# same for regdate
 	$rowRef->{'regDate'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'regDate'});
+if(0) {
 	my $year = $rowRef->{'dob'};
 	my $month = $rowRef->{'dob'};
 	my $day = $rowRef->{'dob'};
-	$month =~ s,[-/].*$,,;
+	$month =~ s,[-].*$,,;
 	$day =~ s,^[^/-]+[-/],,;
-	$day =~ s,[-/].*$,,;
-	$year =~ s,^.*[-/],,;
+	$day =~ s,[-].*$,,;
+	$year =~ s,^.*[-],,;
 	# handle 2 digit years:
-print "year = '$year'\n";
 	if( $year < 100 ) {
 		$year += 1900;
 		if( ! $foundIllegalBirthdate ) {
@@ -375,6 +375,7 @@ print "year = '$year'\n";
 		}
 	}
 	$rowRef->{'dob'} = $year . "-" . $month . "-" . $day;
+}
 	# be careful of any value containing characters that can confuse the mySql parser
 	$rowRef->{'club'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'club'} );
 	$rowRef->{'first'} = PMS_MySqlSupport::MySqlEscape( $rowRef->{'first'} );
