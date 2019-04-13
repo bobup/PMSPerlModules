@@ -352,9 +352,15 @@ sub GetRSINDRow( $$$$$ ) {
 	
 	# convert birthdate into mysql format
 	#  mm/dd/yyyy -> yyyy-mm-dd
-	$rowRef->{'dob'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});	#convert m[m]/d[d]/yyyy into yyyy-mm-dd
+	$rowRef->{'dob'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'dob'});
+	if( $rowRef->{'dob'} eq $PMSConstants::INVALID_DOB ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid birthdate.", 1 );
+	}
 	# same for regdate
 	$rowRef->{'regDate'} = PMSUtil::GenerateCanonicalDOB($rowRef->{'regDate'});
+	if( $rowRef->{'regDate'} eq $PMSConstants::INVALID_DOB ) {
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid registration date.", 1 );
+	}
 if(0) {
 	my $year = $rowRef->{'dob'};
 	my $month = $rowRef->{'dob'};
