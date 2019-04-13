@@ -346,7 +346,6 @@ sub GetRSINDRow( $$$$$ ) {
 	
 	# convert the $gender into our own canonical form:
 	$rowRef->{'gender'} = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $rowRef->{'gender'} );
-print "gender is now " . $rowRef->{'gender'} . "\n";
 	if( $rowRef->{'gender'} eq "?" ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid gender.", 1 );
 	}
@@ -370,8 +369,8 @@ print "gender is now " . $rowRef->{'gender'} . "\n";
 			# we need to display an error, but only once
 			$foundIllegalBirthdate++;
 			my $errStr = "Bad birthdate found in RSIDN file in row # " .
-				"$rowNum: dob='$rowRef->{'dob'}'.  Should be a 4 digit year; we'll assume 1900+";
-			PMSLogging::DumpWarning( "", "", $errStr, 1 );
+				"$rowNum: dob='$rowRef->{'dob'}', year='$year'.  Should be a 4 digit year; we'll assume 1900+";
+			PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): $errStr", 1 );
 			print "\nPMS_ImportPMSData::GetRSINDRow(): $errStr\n";	    				
 		}
 	}
