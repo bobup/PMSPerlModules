@@ -292,7 +292,7 @@ sub GetRSINDRow( $$$$$ ) {
 	} elsif( $rowRef->{'email'} !~ m/^[^@]+@.+\..+/ ) {
 		# an email adderss is not really required but we'll check to make sure it's sane anyway...
 		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid email " .
-		"address (" .  $rowRef->{'email'} . ")" );
+		"address (" .  $rowRef->{'email'} . ")", 1 );
 	}
 	
 	# full reg number is in the spreadsheet
@@ -322,7 +322,7 @@ sub GetRSINDRow( $$$$$ ) {
 				$rowRef->{'swimmerId'} . ") " .
 				"isn't consistent with their reg number (" . $rowRef->{'reg'} . ").\n" .
 				"  Changing reg number to $newReg.  last=$rowRef->{'last'}, " .
-				"first=$rowRef->{'first'}, club=$rowRef->{'club'}");
+				"first=$rowRef->{'first'}, club=$rowRef->{'club'}", 1 );
 			$rowRef->{'reg'} = $newReg;
 		} else {
 			# execute this code if we want to ignore the supplied swimmerId and instead construct it from the
@@ -333,7 +333,7 @@ sub GetRSINDRow( $$$$$ ) {
 				($rowRef->{'swimmerId'}) .
 				" isn't consistent with their reg number ($rowRef->{'reg'}).\n" .
 				"  Changing swimmerId to $newSwimmerId.  last=$rowRef->{'last'}, " .
-				"first=$rowRef->{'first'}, club=$rowRef->{'club'}");
+				"first=$rowRef->{'first'}, club=$rowRef->{'club'}", 1);
 			$rowRef->{'swimmerId'} = $newSwimmerId;
 		}
 	}
@@ -348,7 +348,7 @@ sub GetRSINDRow( $$$$$ ) {
 	$rowRef->{'gender'} = PMSUtil::GenerateCanonicalGender( $filename, $rowNum, $rowRef->{'gender'} );
 print "gender is now " . $rowRef->{'gender'} . "\n";
 	if( $rowRef->{'gender'} eq "?" ) {
-		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid gender." );
+		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid gender.", 1 );
 	}
 	
 	# convert birthdate into mysql format
@@ -371,7 +371,7 @@ print "gender is now " . $rowRef->{'gender'} . "\n";
 			$foundIllegalBirthdate++;
 			my $errStr = "Bad birthdate found in RSIDN file in row # " .
 				"$rowNum: dob='$rowRef->{'dob'}'.  Should be a 4 digit year; we'll assume 1900+";
-			PMSLogging::DumpWarning( "", "", $errStr );
+			PMSLogging::DumpWarning( "", "", $errStr, 1 );
 			print "\nPMS_ImportPMSData::GetRSINDRow(): $errStr\n";	    				
 		}
 	}
