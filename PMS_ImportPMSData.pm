@@ -289,7 +289,7 @@ sub GetRSINDRow( $$$$$ ) {
 	}
 	if( ! defined $rowRef->{'email'} ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): undefined email.", 1 );
-	} elsif( $rowRef->{'email'} == "" ) {
+	} elsif( $rowRef->{'email'} eq "" ) {
 		PMSLogging::DumpWarning( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Missing email.", 1 );
 	} elsif( $rowRef->{'email'} !~ m/^[^@]+@.+\..+/ ) {
 		# an email adderss is not really required but we'll check to make sure it's sane anyway...
