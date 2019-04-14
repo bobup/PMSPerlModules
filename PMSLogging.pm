@@ -171,7 +171,7 @@ sub DumpWarning {
     } else {
         $detail = "[line $lineNum, '$line']";
     }
-    $totalWarn = "! ERROR: $errStr: $detail\n";
+    $totalWarn = "! WARNING: $errStr: $detail\n";
     printLog( $totalWarn );
 	print $totalWarn if( $console );
 } # end of DumpWarning
@@ -202,7 +202,7 @@ sub DumpNote {
     } else {
         $detail = "[line $lineNum, '$line']";
     }
-    $totalNote = "! ERROR: $errStr: $detail\n";
+    $totalNote = "! NOTE: $errStr: $detail\n";
     printLog $totalNote;
 	print $totalNote if( $console );
 } # end of DumpNote
