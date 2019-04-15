@@ -681,6 +681,8 @@ sub GenerateCanonicalGender($$$) {
 	my $passedGender = $_[2];
 	if( !defined $passedGender ) {
 		$passedGender = '(undefined)';		# invalid gender - caught below
+	} elsif( $passedGender eq "" ) {
+		$passedGender = '(empty)';
 	} else {
 		$passedGender = uc($passedGender);
 	}
