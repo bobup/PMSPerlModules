@@ -1344,11 +1344,15 @@ sub ValidateDateWithinSeason( $$$ ) {
 # 	The returned "array as string" shows the fields as a comma-separated string, where
 #   an empty field is denoted as ",,".  Note that the count returned may not match the 
 #   number of fields seen in the $arrayAsString, since some of those fields might be empty.
+#	Any field that contains a ',' or a '"' (comma or double-quote) will be surrounded with 
+#	double-quotes ("), and the double-quote in the field will be replaced with two 
+#	double-quotes.
 #
 sub ConvertArrayIntoString( $ ) {
     my $row = $_[0];
     my $arrayAsString = "";
     my $count = 0;
+    my $addQuotes = 0;		# set to 1 if we need to quote the field
     my $rowLength = scalar @$row;
     for( my $i = 0; $i < $rowLength; $i++ ) {
         my $field = $row->[$i];
@@ -1356,6 +1360,22 @@ sub ConvertArrayIntoString( $ ) {
             $field = "";
         }
         $count++ if( $field ne "" );
+        
+        # the field must be surrounded by quotes if it contains a comma 
+        if( index( $field, ',' ) != -1 ) {
+        	$addQuotes = 1;
+        }
+        
+        # any double-quotes contained in the field must be doubled:
+        if( index( $field, '"' ) != -1 ) {
+        	$field =~ s/"/""/g;
+        	$addQuotes = 1;
+        }
+        
+        if( $addQuotes ) {
+        	$field = '"' . $field . '"';
+        }
+        
         $row->[$i] = $field;
         if( $i == 0 ) {
             $arrayAsString .= "$field";
