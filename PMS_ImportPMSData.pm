@@ -201,10 +201,12 @@ sub ReadPMS_RSIDNData( $$ ) {
 #	$rowRef - reference to a hash into which the fields of the spreadsheet are stored
 #	$rowNum - the row number in the spreadsheet
 #	$g_sheet1_ref - reference to the spreadsheet
-#	$yearBeingProcessed
+#	$yearBeingProcessed - used to construct regnum from swimmerid if necessary, and also
+#		used to validate and correct illegal characters prior to 2018.
+#	$filename - used for error logs
 #
 # RETURNED:
-#	n/a
+#	$rowRef - populated with the contents of the row
 #
 # NOTES:
 #	Any problems discovered with the data will result in a log message.
@@ -244,7 +246,7 @@ sub GetRSINDRow( $$$$$ ) {
 	} else {
 		$rowRef->{'reg'} = uc($rowRef->{'reg'});
 	}	
-	
+
 	# NOW for validation and correction:
 	if( ($rowRef->{'club'} eq "") || (length( $rowRef->{'club'} ) > 10) ) {
 		PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetRSINDRow(): Invalid club.", 1 );

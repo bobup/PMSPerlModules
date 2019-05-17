@@ -22,8 +22,7 @@ our $EMPTY_ACCUMULATED_POINTS = 0;		# by default we will NOT produce an "empty" 
 our $SHOW_ONLY_SWIMMERS_WITH_POINTS = 1;				# true if we display only swimmers who earned points; false if we display all swimmers who swam
 
  #  need to export this correctly...
-our $debug = 0;						# set to > 0 to turn on debugging printouts, usually to the log file (see 
-									# LOG file below).  Can be set via script args.
+our $debug = 0;						# set to > 0 to turn on debugging printouts, usually to the log file.  Can be set via script args.
 our $MIN_GROUP_AGE;                  # the min age of swimmers who are part of the competition being analyzed, e.g. 18 for masters.
 
 our $RegNumRequired = 0;            # We need a reg #, but we don't give up if we don't get one, because we might be able to match

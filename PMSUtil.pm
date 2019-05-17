@@ -613,11 +613,6 @@ sub ValidateAndCorrectSwimmerId {
 	# if the $yearBeingProcessed isn't passed then just make it < 2018
 	$yearBeingProcessed = 2017 if( !defined $yearBeingProcessed );
 
-# until we hear differently we're going to disable this routine.  Today (26Apr2018) we got a new RSIDN
-# file that had reg numbers with L, I, and Q in them.  Waiting to hear what the new rules are.
-#return $newId;
-
-
 	# don't bother if the passed $id is $PMSConstants::INVALID_REGNUM
 	if( $id ne $PMSConstants::INVALID_REGNUM ) {
 		if( $id =~ m/-/ ) {

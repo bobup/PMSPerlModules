@@ -5,6 +5,11 @@
 # Copyright (c) 2016 Bob Upshaw.  This software is covered under the Open Source MIT License 
 
 package PMSLogging;
+
+use diagnostics;
+use strict;
+use warnings;
+
 use lib 'PMSPerlModules';
 require PMSConstants;
 use IO::Handle;		# for flush()
@@ -24,7 +29,9 @@ sub GetLogOnlyLines() {
 
 
 sub FlushLogFile() {
-	LOG->flush();
+	if( defined fileno( LOG ) ) {
+		LOG->flush();
+	}
 } # end of FlushLogFile()
 
 #
@@ -35,6 +42,10 @@ sub FlushLogFile() {
 #
 # RETURNED:
 #	$message - "" if initialization was OK, an error message if an error occurred.
+#
+# NOTES:
+#	If logging is desired then this function must be called first.  However, if this function
+#	is not called then logging will not be initialized, so calls to log something will be ignored.
 #
 sub InitLogging( $ ) {
     my $generatedLogFileName = $_[0];
@@ -51,7 +62,9 @@ sub InitLogging( $ ) {
 
 # printLog - print the passed string to the log file.
 sub printLog( $ ) {
-	print LOG $_[0];
+	if( defined fileno( LOG ) ) {
+		print LOG $_[0];
+	}
 } # end of printLog()
 
 
@@ -67,19 +80,26 @@ sub printLog( $ ) {
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub PrintLog {
-    my ( $line, $lineNum, $errStr, $console ) = @_;
-    my $totalErr;
-	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $totalErr = "$errStr\n";
-    } else {
-        $totalErr = "$errStr: [line $lineNum, '$line']\n";
-    }
-    
-    printLog( $totalErr );
-	if( $console ) {
-		print $totalErr; 
-	} else {
-		$logOnlyLines++;
+	if( defined fileno( LOG ) ) {
+	    my ( $line, $lineNum, $errStr, $console ) = @_;
+	    my $totalErr;
+		my $detail = "";
+		if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
+			$detail = "";
+		} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
+			$detail = ": ['$line']";
+		} elsif( (($line eq "") || ($line eq "0")) ) {
+			$detail = ": [line $lineNum]";
+		} else {
+			$detail = ": [line $lineNum, '$line']";
+		}
+	    $totalErr = $errStr . $detail . "\n";
+	    printLog( $totalErr );
+		if( $console ) {
+			print $totalErr; 
+		} else {
+			$logOnlyLines++;
+		}
 	}
 } # end of PrintLog
 
@@ -95,19 +115,26 @@ sub PrintLog {
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub PrintLogNoNL {
-    my ( $line, $lineNum, $errStr, $console ) = @_;
-    my $totalErr;
-	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $totalErr = "$errStr";
-    } else {
-        $totalErr = "$errStr: [line $lineNum, '$line']";
-    }
-    
-    printLog( $totalErr );
-	if( $console ) {
-		print $totalErr . "\n" 
-	} else {
-		$logOnlyLines++;
+	if( defined fileno( LOG ) ) {
+	    my ( $line, $lineNum, $errStr, $console ) = @_;
+	    my $totalErr;
+		my $detail = "";
+		if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
+			$detail = "";
+		} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
+			$detail = ": ['$line']";
+		} elsif( (($line eq "") || ($line eq "0")) ) {
+			$detail = ": [line $lineNum]";
+		} else {
+			$detail = ": [line $lineNum, '$line']";
+		}
+	    $totalErr = $errStr . $detail;
+	    printLog( $totalErr );
+		if( $console ) {
+			print $totalErr;
+		} else {
+			$logOnlyLines++;
+		}
 	}
 } # end of PrintLogNoNL
 
@@ -128,22 +155,11 @@ sub PrintLogNoNL {
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub DumpError {
-    my ( $line, $lineNum, $errStr, $console ) = @_;
-    my $totalErr;
-    my $detail = "";
-	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $detail = "";
-	} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
-		$detail = "['$line']";
-	} elsif( (($line eq "") || ($line eq "0")) ) {
-		$detail = "[line $lineNum]";
-    } else {
-        $detail = "[line $lineNum, '$line']";
-    }
-    $totalErr = "! ERROR: $errStr: $detail\n";
-    printLog( $totalErr );
-	print $totalErr . "\n" if( $console );
-	$numErrorsLogged++;
+	if( defined fileno( LOG ) ) {
+	    my ( $line, $lineNum, $errStr, $console ) = @_;
+	    PrintLog( $line, $lineNum, "! ERROR: $errStr", $console );
+		$numErrorsLogged++;
+	}
 } # end of DumpError
 
 
@@ -159,21 +175,10 @@ sub DumpError {
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub DumpWarning {
-    my ( $line, $lineNum, $errStr, $console ) = @_;
-    my $totalWarn;
-    my $detail = "";
-	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $detail = "";
-	} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
-		$detail = "['$line']";
-	} elsif( (($line eq "") || ($line eq "0")) ) {
-		$detail = "[line $lineNum]";
-    } else {
-        $detail = "[line $lineNum, '$line']";
-    }
-    $totalWarn = "! WARNING: $errStr: $detail\n";
-    printLog( $totalWarn );
-	print $totalWarn if( $console );
+	if( defined fileno( LOG ) ) {
+     	my ( $line, $lineNum, $errStr, $console ) = @_;
+    	PrintLog( $line, $lineNum, "! WARNING: $errStr", $console );
+	}
 } # end of DumpWarning
 
 
@@ -189,46 +194,12 @@ sub DumpWarning {
 #	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
 sub DumpNote {
-    my ( $line, $lineNum, $errStr, $console ) = @_;
-	my $totalNote;
-	
-	my $detail = "";
-	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $detail = "";
-	} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
-		$detail = "['$line']";
-	} elsif( (($line eq "") || ($line eq "0")) ) {
-		$detail = "[line $lineNum]";
-    } else {
-        $detail = "[line $lineNum, '$line']";
-    }
-    $totalNote = "! NOTE: $errStr: $detail\n";
-    printLog $totalNote;
-	print $totalNote if( $console );
+	if( defined fileno( LOG ) ) {
+    	my ( $line, $lineNum, $errStr, $console ) = @_;
+    	PrintLog( $line, $lineNum, "! NOTE: $errStr", $console );
+	}
 } # end of DumpNote
 
-
-
-
-# DumpProblem - dump a "problem" to the log file
-#
-# PASSED:
-#	$line - the result line from a result file being processed when this ERROR is dumped.
-#		Set to "" (or 0) if not known.
-#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
-#	$errStr - the PROBLEM to dump
-#	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
-#
-sub DumpProblem_old {
-    my ( $line, $lineNum, $errStr, $console ) = @_;
-    my $totalErr;
-	if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
-        $totalErr = "PROBLEM: $errStr\n";
-    } else {
-        $totalErr = "PROBLEM:  $errStr: [line $lineNum, '$line']\n";
-    }
-
-} # end of DumpProblem
 
 
 
@@ -443,7 +414,7 @@ sub DumpRowError {
     my $console = $_[3];
     my $totalErr;
     my $numErrors = 0;
-	if( (($row eq "") || ($row eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
+	if( (($rowRef eq "") || ($rowRef eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
         $totalErr = "! ERROR: $errStr\n";
     } else {
         (my $rowAsString, my $numNonEmptyFields) = PMSUtil::CleanAndConvertRowIntoString( $rowRef );
