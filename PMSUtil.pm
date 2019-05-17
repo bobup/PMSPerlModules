@@ -1352,9 +1352,9 @@ sub ConvertArrayIntoString( $ ) {
     my $row = $_[0];
     my $arrayAsString = "";
     my $count = 0;
-    my $addQuotes = 0;		# set to 1 if we need to quote the field
     my $rowLength = scalar @$row;
     for( my $i = 0; $i < $rowLength; $i++ ) {
+		my $addQuotes = 0;		# set to 1 if we need to quote the field
         my $field = $row->[$i];
         if( !defined $field ) {
             $field = "";
