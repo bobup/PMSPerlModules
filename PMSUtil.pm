@@ -316,7 +316,8 @@ sub ValidateISODate( $ ) {
 		
 		
 sub ConvertToISOPrimary( $$$$ ) {
-		my ($year, $month, $day, $passedDate ) = @_;
+	my ($year, $month, $day, $passedDate ) = @_;
+	my $yearBeingProcessed;
 	
 	$month = "0$month" if( length( $month ) < 2 );
 	if( ($month > 12) || ($month < 1) ) {
@@ -343,7 +344,7 @@ print $trace->as_string; # like carp
 	}		
 	if( length($year) < 3 ) {
 		# a two digit year ... God, will they never learn???
-		my $yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
+		$yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
 		my $twoDigitYear = $year;
 		my ($sec,$min,$hour,$mday,$mon,$currentYear,$wday,$yday,$isdst) = localtime();
 		$year += 2000;		# convert '83' to '2083', or '02' to '2002'
@@ -361,9 +362,15 @@ print $trace->as_string; # like carp
 		# insist that data we process uses 4 digit years everywhere, and for our sake we
 		# pass along the "meaning" of the date (e.g. birthdate or event date) to our date 
 		# handling code so we can make more intelligent decisions.
-		if( $year > $yearBeingProcessed ) {
-			# oops - this can't be right!  try again...
-			$year = $twoDigitYear + 1900;		# convert '83' to '1983', or '02' to '1902'
+		# ANOTHER PROBLEM:  depending on how this routine is called, it's possible we 
+		# don't know the year being processed.  In that case we will leave it as a 2 year date.
+		if( defined $yearBeingProcessed ) {
+			if( $year > $yearBeingProcessed ) {
+				# oops - this can't be right!  try again...
+				$year = $twoDigitYear + 1900;		# convert '83' to '1983', or '02' to '1902'
+			}
+		} else {
+			$year -= 2000;		# back to a 2 digit year...
 		}
 		if( !$twoDigitYearSeen ) {
 			PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
@@ -377,7 +384,7 @@ print $trace->as_string; # like carp
 		$year = "1$year";
 	}
 	# our year is 4 or more digits...
-	if( ($year < 1900) || ($year > 2200) ) {
+	if( (length($year) >= 4) && ( ($year < 1900) || ($year > 2200) ) ) {
 		# avoid sql error, but still allow possibly bogus year
 		PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
 			"Changing to year '1900'.  This needs to be corrected.", "" );
