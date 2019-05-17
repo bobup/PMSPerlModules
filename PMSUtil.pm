@@ -368,15 +368,21 @@ print $trace->as_string; # like carp
 			if( $year > $yearBeingProcessed ) {
 				# oops - this can't be right!  try again...
 				$year = $twoDigitYear + 1900;		# convert '83' to '1983', or '02' to '1902'
+				if( !$twoDigitYearSeen ) {
+					PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
+						"Changing '$twoDigitYear' to '$year'.  This needs to be corrected (this message " .
+						"will not be repeated.)", "" );
+					$twoDigitYearSeen = 1;
+				}
 			}
 		} else {
 			$year -= 2000;		# back to a 2 digit year...
-		}
-		if( !$twoDigitYearSeen ) {
-			PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
-				"Changing '$twoDigitYear' to '$year'.  This needs to be corrected (this message " .
-				"will not be repeated.)", "" );
-			$twoDigitYearSeen = 1;
+			if( !$twoDigitYearSeen ) {
+				PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
+					"Not sure what it should be so not changed.  This needs to be corrected (this message " .
+					"will not be repeated.)", "" );
+				$twoDigitYearSeen = 1;
+			}
 		}
 	} elsif( length($year) == 3 ) {
 		PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
