@@ -23,8 +23,9 @@ my $debug = 1;
 # Forward declaration....
 sub ReadPMS_RSIDNData( $$ );
 sub GetRSINDRow( $$$$$ );
-sub GetPMSTeams( $ );
+sub GetPMSTeams( $$ );
 sub RSINDFileIsNew( $$ );
+sub GetPMSTeams_Excel( $$ );
 
 # we allow 2 digit years but complain about it.  The generator of these data should know better!
 my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
@@ -164,6 +165,9 @@ sub ReadPMS_RSIDNData( $$ ) {
     			"\"$rowRef->{'city'}\", \"$rowRef->{'state'}\", " .
     			"\"$rowRef->{'zip'}\", \"$rowRef->{'country'}\" " .
     			")" );
+    		# just in case the database handle was closed/reopened:
+    		$dbh = PMS_MySqlSupport::GetMySqlHandle();
+    		
 	    }
 	    # we're done - updata our meta data
 		$query = "UPDATE Meta SET RSIDNFileName = '$simpleName' WHERE Year='$yearBeingProcessed'";
@@ -498,9 +502,10 @@ sub RSINDFileIsNew( $$ ) {
 #			.csv - comma separated fields
 #			(non-empty extension) - some kind of excel spreadsheet
 #			(no extension) - error
+#	$yearBeingProcessed -
 #
-sub GetPMSTeams( $ ) {
-	my $clubDataFile = $_[0];
+sub GetPMSTeams( $$ ) {
+	my ($clubDataFile, $yearBeingProcessed) = @_;
 	my( $simpleName, $dirs, $suffix ) = fileparse( $clubDataFile );		# get last simple name in filename
 	my $numTeamRows = 0;  # number of rows in PMSTeams table before any possible update
 
@@ -516,7 +521,8 @@ sub GetPMSTeams( $ ) {
 		$numTeamRows = $arr_ref->[0];
 		if( $numTeamRows > 0 ) {
 			# we have team data - is it the data from the requested Team file?
-    		(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "SELECT TeamsFileName FROM Meta" );
+    		(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "SELECT TeamsFileName FROM Meta " .
+    			"WHERE Year = '$yearBeingProcessed'" );
     		$arr_ref = $sth2->fetchrow_arrayref();
     		my $lastTeamsFileName = $arr_ref->[0];
     		if( !defined $lastTeamsFileName ) {
@@ -551,20 +557,35 @@ sub GetPMSTeams( $ ) {
 	    	# no extension?  give up
 	    	die "PMS_ImportPMSData::GetPMSTeams(): Missing file extension ($clubDataFile)."
 	    } elsif( $ext eq "txt" ) {
-	    	$numTeams = GetPMSTeams_txt( $clubDataFile );
-	    } elsif( $ext eq "csv" ) {
-	    	GetPMSTeams_csv( $clubDataFile );
+	    	$numTeams = GetPMSTeams_txt( $clubDataFile, $yearBeingProcessed );
 	    } else {
 	    	# assume a spreadsheet
-	    	GetPMSTeams_xls( $clubDataFile );
+	    	$numTeams = GetPMSTeams_Excel( $clubDataFile, $yearBeingProcessed );
 	    }
 
+		# add 'unat' to our list
+		my $abbr = "UC38";
+		my $fullName = "Unattached";
+		$dbh = PMS_MySqlSupport::GetMySqlHandle();
+		($sth,$rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "INSERT IGNORE INTO PMSTeams " .
+			"(TeamAbbr, FullTeamName) " .
+			"VALUES (\"$abbr\", \"$fullName\")" );
+		
+		# add "non-PMS team" to our list
+		$abbr = "nonpms";
+		$fullName = "Non-PMS Team";
+		$dbh = PMS_MySqlSupport::GetMySqlHandle();
+		($sth, $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,  "INSERT IGNORE INTO PMSTeams " .
+			"(TeamAbbr, FullTeamName) " .
+			"VALUES (\"$abbr\", \"$fullName\")" );	
+
+
 	    # we're done - updata our meta data
-		my $query = "UPDATE Meta SET TeamsFileName = '$simpleName'";
+		my $query = "UPDATE Meta SET TeamsFileName = '$simpleName' WHERE Year='$yearBeingProcessed'";
 		my $rowsAffected = $dbh->do( $query );
 		if( $rowsAffected == 0 ) {
 			# update failed - must not be any rows to update.  INSERT instead
-			$query = "INSERT INTO Meta (TeamsFileName) VALUE ('$simpleName')";
+			$query = "INSERT INTO Meta (TeamsFileName,Year) VALUE ('$simpleName','$yearBeingProcessed')";
 			$rowsAffected = $dbh->do( $query );
 			if( $rowsAffected == 0 ) {
 				# oops - Update failed
@@ -583,21 +604,65 @@ sub GetPMSTeams( $ ) {
 	}
 } # end of GetPMSTeams()
 
-sub GetPMSTeams_xls( $ ) {
-	die "PMS_ImportPMSData::GetPMSTeams_xls(): Not implemented.";
-} # end of GetPMSTeams_xls()
 
 
-sub GetPMSTeams_csv( $ ) {
-	my $seperator = ",";
-	die "PMS_ImportPMSData::GetPMSTeams_csv(): Not implemented.";
-} # end of GetPMSTeams_csv()
+
+
+
+sub GetPMSTeams_Excel( $$ ) {
+	my ($clubDataFile, $yearBeingProcessed) = @_;
+    my $g_ref = ReadData( $clubDataFile );
+    # $g_ref is an array reference
+    # $g_ref->[0] is a reference to a hashtable:  the "control hash"
+    my $numSheets = $g_ref->[0]{sheets};        # number of sheets, including empty sheets
+    print "\nfile $clubDataFile:\n  Number of sheets:  $numSheets.\n  Names of non-empty sheets:\n" 
+    	if( $debug > 0);
+    my $sheetNames_ref = $g_ref->[0]{sheet};  # reference to a hashtable containing names of non-empty sheets.  key = sheet
+                                              # name, value = monotonically increasing integer starting at 1 
+    my %tmp = % { $sheetNames_ref } ;         # hashtable of sheet names (above)
+    my ($sheetName);
+    foreach $sheetName( sort { $tmp{$a} <=> $tmp{$b} } keys %tmp ) {
+        print "    $sheetName\n" if( $debug > 0 );
+    }
+    
+    # get the first sheet
+    my $g_sheet1_ref = $g_ref->[1];         # reference to the hashtable representing the sheet
+    my $numRowsInSpreadsheet = $g_sheet1_ref->{maxrow};	# number of rows in club data file
+    my $numColumnsInSpreadsheet = $g_sheet1_ref->{maxcol};
+    print "numRows=$numRowsInSpreadsheet, numCols=$numColumnsInSpreadsheet\n" if( $debug > 0 );
+
+	# Finally, pass through the sheet collecting initial data on all swimmers:
+	# (skip first row because we assume it has row titles)
+	my $rowNum;
+#	my $rowRef = {};
+	my $dbh = PMS_MySqlSupport::GetMySqlHandle();
+	for( $rowNum = 2; $rowNum <= $numRowsInSpreadsheet; $rowNum++ ) {
+		# extract data from the spreadsheet:
+		my $fullClubName = $g_sheet1_ref->{"A$rowNum"};
+		my $clubAbbr = $g_sheet1_ref->{"B$rowNum"};
+		if( (! defined $fullClubName) || (! defined $clubAbbr) ) {
+				PMSLogging::DumpError( "", $rowNum, "PMS_ImportPMSData::GetPMSTeams_Excel(): " .
+					"missing team name and/or abbreviation on row $rowNum of $clubDataFile.", 1 );
+		} else {
+			$clubAbbr = uc($clubAbbr);
+			# now, store this team in our database...
+			my $tableName = "PMSTeams";
+			my($sth,  $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,
+			"INSERT INTO PMSTeams (TeamAbbr, FullTeamName) " .
+				"VALUES (\"$clubAbbr\", \"$fullClubName\")" );
+			# just in case the database handle was closed/reopened:
+			$dbh = PMS_MySqlSupport::GetMySqlHandle();
+		}		
+	} # end of for( $rowNum...
+	
+	return $rowNum-2;
+} # end of GetPMSTeams_Excel()
 
 
 # format:
 # Club Abbr	\t	Club Name	\t	#	\t	Year	\t	Reg. Date
 sub GetPMSTeams_txt( $ ) {
-	my $clubDataFile = $_[0];
+	my ($clubDataFile, $yearBeingProcessed) = @_;
 	my $seperator = "\t";
 	my $lineNum = 0;
 	my $numTeams = 0;
@@ -638,24 +703,8 @@ sub GetPMSTeams_txt( $ ) {
 			"VALUES (\"$abbr\", \"$fullName\")" );
     } # end of while( my $line = <PROPERTYFILE....
 		
-	# add 'unat' to our list
-	my $abbr = "UC38";
-	my $fullName = "Unattached";
-	my $dbh = PMS_MySqlSupport::GetMySqlHandle();
-	(my $sth,my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "INSERT IGNORE INTO PMSTeams " .
-		"(TeamAbbr, FullTeamName) " .
-		"VALUES (\"$abbr\", \"$fullName\")" );
-	
-	# add "non-PMS team" to our list
-	$abbr = "nonpms";
-	$fullName = "Non-PMS Team";
-	$dbh = PMS_MySqlSupport::GetMySqlHandle();
-	($sth, $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,  "INSERT IGNORE INTO PMSTeams " .
-		"(TeamAbbr, FullTeamName) " .
-		"VALUES (\"$abbr\", \"$fullName\")" );
-
 	return $numTeams;
-} # end of GetPMSTeams
+} # end of GetPMSTeams_txt
 
 
 
@@ -705,7 +754,8 @@ sub GetMergedMembers($$) {
 		$numMMRows = $arr_ref->[0];
 		if( $numMMRows > 0 ) {
 			# we have Merged Member data - is it the data from the requested Merged Member file?
-    		(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "SELECT MergedMemberFileName FROM Meta" );
+    		(my $sth2, my $rv2) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "SELECT MergedMemberFileName FROM Meta " .
+    			"WHERE Year='$yearBeingProcessed'" );
     		$arr_ref = $sth2->fetchrow_arrayref();
     		my $lastMMFileName = $arr_ref->[0];
     		if( !defined $lastMMFileName ) {
@@ -835,11 +885,11 @@ sub GetMergedMembers($$) {
 	    }
 	    
 	    # we're done - updata our meta data
-		my $query = "UPDATE Meta SET MergedMemberFileName = '$simpleName'";
+		my $query = "UPDATE Meta SET MergedMemberFileName = '$simpleName' WHERE Year='$yearBeingProcessed'";
 		my $rowsAffected = $dbh->do( $query );
 		if( $rowsAffected == 0 ) {
 			# update failed - must not be any rows to update.  INSERT instead
-			$query = "INSERT INTO Meta (MergedMemberFileName) VALUE ('$simpleName')";
+			$query = "INSERT INTO Meta (MergedMemberFileName,Year) VALUE ('$simpleName','$yearBeingProcessed)";
 			$rowsAffected = $dbh->do( $query );
 			if( $rowsAffected == 0 ) {
 				# oops - Update failed

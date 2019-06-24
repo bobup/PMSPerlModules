@@ -41,6 +41,7 @@ my %databaseParameters = ();
 # this static is used to allow us to report swimmer age errors that are only warnings.
 my $SwimmerAgeWarningAlreadyReported = 0;
 
+
 #***************************************************************************************************
 #************************************** General MySql Support Routines *****************************
 #***************************************************************************************************
@@ -80,6 +81,7 @@ sub SetSqlParameters( $$$$$ ) {
 sub GetMySqlHandle {
 	my $dbid = $_[0];
 	my $dbh = 0;
+	my ($sth, $rv, $status);
 	if( !defined $dbid ) {
 		$dbid = "default";
 	}
@@ -102,6 +104,36 @@ sub GetMySqlHandle {
         	die "ABORT!!";
 		} else {
         	$databaseParameters{"$dbid-handle"} = $dbh;
+        	($sth, $rv, $status) = PrepareAndExecute( $dbh, "SET collation_connection = 'utf8_general_ci'" );
+			if( $status ne "" ){
+        		PMSLogging::DumpError( 0, 0, "PMS_MySqlSupport::GetMySqlHandle(): Failed to set " .
+        			"SESSION variable: '$status'", 1 );
+			}
+        	($sth, $rv, $status) = PrepareAndExecute( $dbh, "SET collation_database = 'utf8_general_ci'" );
+			if( $status ne "" ){
+        		PMSLogging::DumpError( 0, 0, "PMS_MySqlSupport::GetMySqlHandle(): Failed to set " .
+        			"SESSION variable: '$status'", 1 );
+			}
+        	($sth, $rv, $status) = PrepareAndExecute( $dbh, "SET collation_server = 'utf8_general_ci'" );
+			if( $status ne "" ){
+        		PMSLogging::DumpError( 0, 0, "PMS_MySqlSupport::GetMySqlHandle(): Failed to set " .
+        			"SESSION variable: '$status'", 1 );
+			}
+			if(0) {
+        	($sth, $rv, $status) = PrepareAndExecute( $dbh, "SHOW SESSION VARIABLES LIKE 'collation_%';" );
+			while( defined( my $ary_ref = $sth->fetchrow_arrayref ) ) {
+				my $varName = $ary_ref->[0];
+				my $varValue = $ary_ref->[1];
+				print "var $varName = $varValue\n";
+			} # end of while(...
+        	($sth, $rv, $status) = PrepareAndExecute( $dbh, "SHOW SESSION VARIABLES LIKE 'character_%';" );
+			while( defined( my $ary_ref = $sth->fetchrow_arrayref ) ) {
+				my $varName = $ary_ref->[0];
+				my $varValue = $ary_ref->[1];
+				print "var $varName = $varValue\n";
+			} # end of while(...
+			}
+			
 		}
 	}
 	return $dbh;
@@ -198,7 +230,7 @@ sub GetTableList {
 #		short error message.
 #
 #  e.g.:
-#    ($sth, $rv) = PrepareAndExecute( $dbh, 
+#    ($sth, $rv, $status) = PrepareAndExecute( $dbh, 
 #    			"CREATE TABLE Events (EventId INT AUTO_INCREMENT PRIMARY KEY, " .
 #    			"EventName Varchar(200), EventFullPath Varchar(400), Distance INT, " .
 #    			"DistanceUnits Varchar(20))" ); 
@@ -258,10 +290,14 @@ sub PrepareAndExecute {
 		}
 		if( $status ) {
 			# got an error - try to recover
-			PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retrying...)", 1);
+			$weRetried++;
+			PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retrying #$weRetried...)", 1);
+			if( $sth ) {
+				# we're done with this statement handle, too.  We'll get another when we loop and try again
+				$sth->finish;
+			}
 			PMS_MySqlSupport::CloseMySqlHandle();
 			$dbh = PMS_MySqlSupport::GetMySqlHandle();
-			$weRetried++;
 		}
 	} # end of for( ...
 	if( $status ) {
@@ -287,8 +323,6 @@ sub DropTables( $$ ) {
 	my $dbh = GetMySqlHandle();
 	my $qry = "DROP tables ";
 	my $gotTableToDrop = 0;
-	
-	print "dropping tables\n";
 	
 	# construct the DROP TABLES query:
 	foreach my $tableName (keys %$tableListRef) {
@@ -438,8 +472,8 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 	my $yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
 
 	# debugging...look for specific first/last name to log lots of details
-	my $debugLastName = 'xxxx';
-
+	my $debugLastName = 'Nuñez-Zeped';
+	
 	if( (lc($lastName) eq lc($debugLastName)) ) {
 		print "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): got '$firstName' '$middleInitial' '$lastName'\n";
 		print "...raceFileName='$raceFileName', eventId='$eventId', regnum=$regNum\n";
@@ -540,6 +574,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 			$resultMissingDataType, $resultErrorNote, $resultErrorRegnum, $rsidnId) = 
 				LookUpSwimmerInRSIDN( $firstName, $middleInitial, $lastName, $regNum, 
 					$dateOfBirthDef, $gender, $team, $age, $recordedPlace );
+
 		if( $correctedRegNum eq "" ) {
 			# This swimmer is NOT known in the RSIDN
 #			# We log this if the reg # implies that this swimmer is a PMS swimmer:
@@ -564,6 +599,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 			# belonging to the passed swimmer.)
 		} else {
 			# This swimmer is known in the RSIDN
+
 			if( (lc($lastName) eq lc($debugLastName)) ) {
 				print "...swimmer was found in RSIDN_$yearBeingProcessed, correctedRegNum=$correctedRegNum, " .
 				"correctedDOB='$correctedDOB'.  corrected name: " .
@@ -706,7 +742,6 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 	AssociateSwimmerWithTeams( $resultSwimmerId, $registeredTeam, $team );
 	
 	# if we found any errors we'll update the MissingData table with details
-			
 	if( $resultMissingDataType ne "" ) {
 		PMS_MySqlSupport::LogInvalidSwimmer( $resultMissingDataType, $resultSwimmerId, $resultErrorRegnum,
 			$eventId, $resultErrorNote );
@@ -1165,7 +1200,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 		"(USMS SwimmerId=$USMSSwimmerId), birthDate=$birthDate, gender=$gender, " .
 		"team=$team, age=$age, recorded place=$recordedPlace.\n";
 	my $dbh = PMS_MySqlSupport::GetMySqlHandle();
-	my $sth, my $rv;
+	my $sth, my $rv, my $status;
 	my @RSIDNFirstName = ();
 	my @RSIDNMiddleInitial = ();
 	my @RSIDNLastName = ();
@@ -1176,7 +1211,12 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 	my @RSIDNBirthDate = ();
 	my @RSIDNId = ();
 	my $logRSIDN = "";
-	my $debugLastName = "xxxx";
+	
+	
+	
+	my $debugLastName = "xxxxx";
+#	use utf8;
+#	utf8::decode($debugLastName);
 
 	# initialize the returned values - assume the returned names are the same as the passed names
 	my $resultFirstName = $firstName;
@@ -1207,15 +1247,15 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 				"passed regNum='$regNum', query='$query'\n";
 		}
 		
-	($sth,$rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query, "" );
+	($sth,$rv, $status) = PMS_MySqlSupport::PrepareAndExecute( $dbh, $query, "" );
 	while( my $resultHash = $sth->fetchrow_hashref ) {
 		$RSIDNMiddleInitial[$count] = $resultHash->{'MiddleInitial'};
 		$RSIDNFirstName[$count] = $firstName;
 		$RSIDNLastName[$count] = $lastName;
 
 		if( (lc($debugLastName) eq lc($lastName))) {
-			print "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): Found $firstName '$middleInitial' $lastName " .
-				"in RSIDN_$yearBeingProcessed, found names are: '$RSIDNFirstName[$count]' " .
+			print "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): Looking for '$firstName' '$middleInitial' '$lastName' " .
+				"in RSIDN_$yearBeingProcessed, found names #$count are: '$RSIDNFirstName[$count]' " .
 				"'$RSIDNMiddleInitial[$count]' '$RSIDNLastName[$count]'\n";
 		}
 
@@ -1255,13 +1295,15 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 				$resultRsidnId = $RSIDNId[$count];
 				# at this point we found our swimmer and they have the correct regnum, so we're 
 				# done.
+				$count++;
 				last;
 			}
 			$count++;
 		}
 	}
-	
-	# At this point $count represents the number of swimmers in RSIDN with the passed name.
+	# At this point $count represents the number of swimmers we FOUND in RSIDN with the passed name.
+	# (There may actually be more swimmers with the passed name but if we found an exact match we
+	# stopped looking for others.)
 	# All that is left is to handle the case where we failed to find the swimmer by name + regnum
 	
 	if( $resultRegNum eq "" ) {
@@ -1270,10 +1312,11 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 		if( $count == 0 ) {
 			# the name didn't match anyone - check regnum to see if we have a fuzzy match
 			($sth,$rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,
-				"SELECT FirstName, MiddleInitial, LastName, RegisteredTeamInitialsStr, " .
-				"Gender, DateOfBirth, RegNum FROM RSIDN_$yearBeingProcessed where USMSSwimmerId = '$USMSSwimmerId'" );
+				"SELECT RSIDNId, FirstName, MiddleInitial, LastName, RegisteredTeamInitialsStr, " .
+				"Gender, DateOfBirth, RegNum FROM RSIDN_$yearBeingProcessed where USMSSwimmerId = '$USMSSwimmerId'", "" );
 			if( defined( my $resultHash = $sth->fetchrow_hashref ) ) {
 				# found the regnum - see if the names are close
+				$RSIDNId[0] = $resultHash->{'RSIDNId'};
 				$RSIDNFirstName[0] = $resultHash->{'FirstName'};
 				$RSIDNMiddleInitial[0] = $resultHash->{'MiddleInitial'};
 				$RSIDNLastName[0] = $resultHash->{'LastName'};
@@ -1291,7 +1334,20 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 					"birthDate=$RSIDNBirthDate[0], gender=$RSIDNGender[0], team=$RSIDNTeam[0].\n";
 				my $fuzzyScore;
 				if( ($fuzzyScore = PMSUtil::NamesCompareOK2( $firstName, $middleInitial, $lastName, 
-					$RSIDNFirstName[0], $RSIDNMiddleInitial[0], $RSIDNLastName[0] )) >= 0 ) {
+					$RSIDNFirstName[0], $RSIDNMiddleInitial[0], $RSIDNLastName[0] )) == 0 ) {
+					# case 1:  in this case the regnum and name match.  This is a strange case to handle 
+					# a strange situation:  the SELECT failed to match the names even though they really do match.
+					# This is usually the case when utf8 chars are used in the names and the database isn't
+					# comparing them correctly.  This should be fixed...
+					$resultFirstName = $RSIDNFirstName[0];
+					$resultMiddleInitial = $RSIDNMiddleInitial[0];
+					$resultLastName = $RSIDNLastName[0];
+					$resultRegNum = $RSIDNRegNum[0];
+					$resultRsidnId = $RSIDNId[0];
+					PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): This query failed:\n" .
+						"    $query\n    But the name and regnum match an RSIND entry exactly.  We will assume they \n" .
+						"    are a PMS swimmer, but the SELECT failure should be investigated.", 1 );
+				} elsif( $fuzzyScore > 0 ) {
 					# case 2)  we found this swimmer's regnum in the RSIDN table, and the associated name is "close"
 					# to the swimmer's name, so WE MAY have the right swimmer
 					$resultFirstName = $RSIDNFirstName[0];
@@ -1300,7 +1356,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 					# log the error:
 					$resultMissingDataType = "PMSFuzzyNameWithRegnum";
 					$resultErrorRegnum = $regNum;
-						
+
 					$resultErrorNote = ConstructSynonym( $lastName, $firstName, $middleInitial, $RSIDNLastName[0],
 						$RSIDNFirstName[0], $RSIDNMiddleInitial[0], 
 						"[Good Fuzzy match ($fuzzyScore):]" .
@@ -1310,8 +1366,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 						"so these may be the same person.  If so, use this message to create a synonym." .
 						"\n\t# We will assume this swimmer is NOT a PacMasters swimmer until the appropriate synonym " .
 						"is created." );
-					
-						
+	
 					$resultRegNum = "";	# don't accept "close" names - make them fix it in the
 						# results or with a ">last,first" property
 				} else {
@@ -1438,6 +1493,7 @@ sub ConstructSynonym( $$$$$$$ ) {
 	
 	my $result = "$hash>last,first\t$lastName,$firstName$middleInitialStr\t\t" .
 		">\t$RSIDNLastName,$RSIDNFirstName$RSIDNMiddleInitialStr\t\t# $msgStr";
+
 	return $result;
 
 } # end of ConstructSynonym()
@@ -1644,7 +1700,7 @@ sub LogInvalidSwimmer {
 
 	$notes = '' if( !defined( $notes ) );
 	my $escNotes = MySqlEscape( $notes );
-	
+
 	# convert the missing data type into its corresponding id
 	($sth,$rv) = PrepareAndExecute( $dbh, 
 		"SELECT MissingDataTypeId from MissingDataType where ShortName='$mdType'" );
@@ -1731,9 +1787,10 @@ sub LogInvalidSwimmer {
 		$dataString = MySqlEscape( "Event(s) and details: $newDataString" );
 		$dataString .= "; uniqueKey='$uniqueKey'";
 		$dataString = MySqlEscape( $dataString );
+
 		($sth,$rv) = PrepareAndExecute( $dbh, 
 			"INSERT INTO MissingData VALUES (0, $missingDataTypeId, $swimmerId, '$regNum'," .
-				"$eventId,'$escNotes', '$uniqueKey', '$dataString')" );
+				"$eventId,'$escNotes', '$uniqueKey', '$dataString')", "" );
 	}
 	$logInvalidSwimmersCount++;
 } # end of LogInvalidSwimmer()
@@ -1787,7 +1844,6 @@ sub GetListOfResults( $$$ ) {
 	my $pointsToGet = "Cat".$category."Points";
 	my $fieldName = "Cat" . $category . "Reason";
 
-#print "gender=$gender, ageGroup=$ageGroup\n";
 	($sth, $rv) = PrepareAndExecute( $dbh,
 		"SELECT SwimmerId, RegNum, Age1, Age2, Gender, AgeGroup, FirstName, " .
 		"MiddleInitial, LastName, $pointsToGet as Points, $fieldName as Reason, " .
@@ -1795,7 +1851,6 @@ sub GetListOfResults( $$$ ) {
 		"WHERE $pointsToGet >= 0 " .
 		"AND AgeGroup = '$ageGroup' " .
 		"AND Gender = '$gender' " .
-#		"ORDER BY $pointsToGet DESC", "PMS_MySqlSupport::GetListOfResults()");
 		"ORDER BY $pointsToGet DESC", "");
 	return $sth;
 
@@ -1863,7 +1918,6 @@ sub GetListOfRaces( $ ) {
 		"SELECT EventId, EventName, Date FROM Events " .
 		"WHERE Category = $category " .
 		"ORDER BY EventId ASC", "");
-#		"ORDER BY Date ASC", "");
 	return $sth;
 
 } # end of GetListOfRaces()

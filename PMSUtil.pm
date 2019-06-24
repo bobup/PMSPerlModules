@@ -966,22 +966,31 @@ sub NamesCompareOK2($$$$$$) {
     my( $first2, $last2, $middle2 ) = PMSUtil::GenerateCanonicalNames( 
     	$name2First, $name2Last, $name2Middle );
     
-    # fuzzy compare
-    my $fuzzyFirstResult = FuzzyCompareTwoStrings( $first2, $name1First );
-    my $fuzzyFirstLength = length($first2)<length($name1First)?length($first2):length($name1First);
-    $fuzzyFirstLength = int($fuzzyFirstLength/2);
-    $fuzzyFirstLength = $fuzzyFirstLength<3?$fuzzyFirstLength:3;
-    my $fuzzyLastResult = FuzzyCompareTwoStrings( $last2, $name1Last );
-    my $fuzzyLastLength = length($last2)<length($name1Last)?length($last2):length($name1Last);
-    $fuzzyLastLength = int($fuzzyLastLength/2);
-    $fuzzyLastLength = $fuzzyLastLength<2?$fuzzyLastLength:2;
-    # compute overall fuzzy score:
-    $result = $fuzzyLastResult + $fuzzyFirstResult;
-    if( ($fuzzyLastResult <= $fuzzyLastLength) && ($fuzzyFirstResult <= $fuzzyFirstLength) ) {
-        # names match exactly or fuzzy match
+    # look for exact match:
+    if( (lc($name1First) eq lc($first2)) && (lc($name1Last) eq lc($last2)) ) {
+    	# exact match - return immediatly
     } else {
-        # names don't match, fuzzy or otherwise
-        $result *= -1;
+	    # fuzzy compare
+	    my $fuzzyFirstResult = FuzzyCompareTwoStrings( $first2, $name1First );
+	    my $fuzzyFirstLength = length($first2)<length($name1First)?length($first2):length($name1First);
+	    $fuzzyFirstLength = int($fuzzyFirstLength/2);
+	    $fuzzyFirstLength = $fuzzyFirstLength<3?$fuzzyFirstLength:3;
+	    my $fuzzyLastResult = FuzzyCompareTwoStrings( $last2, $name1Last );
+	    my $fuzzyLastLength = length($last2)<length($name1Last)?length($last2):length($name1Last);
+	    $fuzzyLastLength = int($fuzzyLastLength/2);
+	    $fuzzyLastLength = $fuzzyLastLength<2?$fuzzyLastLength:2;
+	    # compute overall fuzzy score:
+	    $result = $fuzzyLastResult + $fuzzyFirstResult;
+	    if( ($fuzzyLastResult <= $fuzzyLastLength) && ($fuzzyFirstResult <= $fuzzyFirstLength) ) {
+	        # names match "almost" exactly or fuzzy match
+	        # since a return of 0 is reserved for exact match (above) we'll make sure we return 1 or more:
+	        if( $result == 0 ) {
+	        	$result = 1;
+	        }
+	    } else {
+	        # names don't match, fuzzy or otherwise
+	        $result *= -1;
+	    }
     }
         
     return $result;

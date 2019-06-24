@@ -91,8 +91,10 @@ sub ProcessRace( $$$$$ ) {
          my @rows;
          my $csv = Text::CSV_XS->new ({ binary => 1, sep_char => $seperator }) or
              die "Cannot use CSV: ".Text::CSV_XS->error_diag ();
-         open my $fh, "<:encoding(utf8)", "$fileName" or die "PMSProcess2SingleFile::ProcessRace(): " .
-         	"ABORT: Can't open '$fileName': $!";
+         open my $fh, "<:encoding(utf8)", "$fileName" or do {
+            PMSLogging::DumpError( "", "", "PMSProcess2SingleFile::ProcessRace():  Unable to open '$fileName' - ABORT!", 1 );
+         	die "PMSProcess2SingleFile::ProcessRace(): ABORT: Can't open '$fileName': $!";
+         };
         print "file $fileName: Number of sheets:  1 (it's a " .
         	( $seperator eq "," ? "comma-separated" : "tab-separated" ) . " .$ext file).\n" if( $PMSConstants::debug >= 1);
          while (my $row = $csv->getline ($fh)) {
@@ -395,7 +397,6 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
     # $rowRef->[7] - reg # - can be anything but must be non-empty
     # $rowRef->[8] - DOB - can be anything 
     # $rowRef->[9] - time|distance - can be anything 
-    
 
 	# Use the passed $rowRef (reference to an array of fields) to construct a single string, which is
 	# a comma separated string of fields.
