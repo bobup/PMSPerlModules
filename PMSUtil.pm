@@ -10,6 +10,7 @@ use lib 'PMSPerlModules';
 require PMSLogging;
 require PMSConstants;
 require Devel::StackTrace;
+# NOTE:  Instead of above see PrintStack() below
 
 
 
@@ -1346,7 +1347,12 @@ sub ValidateDateWithinSeason( $$$ ) {
 #
 # RETURNED:
 #	$arrayAsString - a string containing each of the fields of $row separated by commas
+
+
+# this is NOT returned:
 #	$count - the number of non-empty fields found in $row
+
+
 #
 # NOTES:
 # 	march thru the passed array of fields and count the number of non-empty fields.
@@ -1360,7 +1366,7 @@ sub ValidateDateWithinSeason( $$$ ) {
 sub ConvertArrayIntoString( $ ) {
     my $row = $_[0];
     my $arrayAsString = "";
-    my $count = 0;
+#    my $count = 0;
     my $rowLength = scalar @$row;
     for( my $i = 0; $i < $rowLength; $i++ ) {
 		my $addQuotes = 0;		# set to 1 if we need to quote the field
@@ -1368,7 +1374,7 @@ sub ConvertArrayIntoString( $ ) {
         if( !defined $field ) {
             $field = "";
         }
-        $count++ if( $field ne "" );
+#        $count++ if( $field ne "" );
         
         # the field must be surrounded by quotes if it contains a comma 
         if( index( $field, ',' ) != -1 ) {
@@ -1384,8 +1390,11 @@ sub ConvertArrayIntoString( $ ) {
         if( $addQuotes ) {
         	$field = '"' . $field . '"';
         }
-        
-        $row->[$i] = $field;
+
+# why were we doing this?  changed a passed parameter that was not documented as changed above   
+#$row->[$i] = $field;
+
+
         if( $i == 0 ) {
             $arrayAsString .= "$field";
         } else {
@@ -1580,6 +1589,16 @@ sub GetMostRecentVersion( $$ ) {
 } # end of GetMostRecentVersion()
 
 
-
+# thanks to:  https://stackoverflow.com/questions/229009/how-can-i-get-a-call-stack-listing-in-perl/56596630#56596630
+sub PrintStack {
+    my ($package, $filename, $line, $subroutine, $hasargs, $wantarray, $evaltext, $is_require, $hints, $bitmask, $hinthash);
+    my $i = 1;
+    my @r;
+    while (@r = caller($i)) {
+        ($package, $filename, $line, $subroutine, $hasargs, $wantarray, $evaltext, $is_require, $hints, $bitmask, $hinthash) = @r;
+        print "$filename:$line $subroutine\n";
+        $i++;
+    }
+} # end of PrintStack()
 
 1;  # end of module

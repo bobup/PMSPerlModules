@@ -92,7 +92,7 @@ sub GetMySqlHandle {
 	$dbh = $databaseParameters{"$dbid-handle"};
 	if( $dbh == -1 ) {
 		# first attempt at getting the connection
-		print "\nNOTE:  Using MySQL ($dbid: $database) for storage.\n";
+		#print "\nNOTE:  Using MySQL ($dbid: $database) for storage.\n";
 		$dbh = DBI->connect("DBI:mysql:database=$database;host=$host", $user, $password);
 		if( !defined($dbh) ) {
         	PMSLogging::DumpError( 0, 0, "PMS_MySqlSupport::GetMySqlHandle(): ABORT: failed to get the " .
