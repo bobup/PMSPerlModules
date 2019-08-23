@@ -60,10 +60,12 @@ sub InitLogging( $ ) {
 } # end of InitLogging()
 
 
-# printLog - print the passed string to the log file.
+# printLog - print the passed string to the log file if it exists, otherwise to stdout
 sub printLog( $ ) {
 	if( defined fileno( LOG ) ) {
 		print LOG $_[0];
+	} else {
+		print "*** LOG FILE NOT INITIALIZED.*** " . $_[0];
 	}
 } # end of printLog()
 
@@ -299,6 +301,7 @@ sub Dump2DArray {
 #	$title - the title of the dump
 #	$localDebug - (optional - default set below) If $localdebug is <= the global $debug then dump the hash.  
 # 		Set to 0 to force the dump if $localDebug is not defined.
+#	$console - (optional) - if true then also log to the console.  Default is 0.
 #
 sub DumpHash {  
     my %hash = %{$_[0]};
@@ -308,9 +311,16 @@ sub DumpHash {
     if( defined( $_[2] ) ) {
         $localDebug = $_[2];
     }
+    my $console = 0;
+    if( defined( $_[3] ) ) {
+    	$console = $_[3];
+    }
     if( $PMSConstants::debug >= $localDebug ) {        
         foreach my $key (sort keys %hash) {
             printLog "$title" . "{$key} = $hash{$key}\n";
+            if( $console ) {
+            	print "$title" . "{$key} = $hash{$key}\n";
+            }
         }
     }
 } # end of DumpHash
@@ -412,12 +422,20 @@ sub DumpRowError {
     my $rowNum = $_[1];
     my $errStr = $_[2];
     my $console = $_[3];
+    my $rowAsString = "?";
     my $totalErr;
     my $numErrors = 0;
 	if( (($rowRef eq "") || ($rowRef eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
         $totalErr = "! ERROR: $errStr\n";
-    } else {
-        (my $rowAsString, my $numNonEmptyFields) = PMSUtil::CleanAndConvertRowIntoString( $rowRef );
+	} else {
+		if( ($rowRef eq "") || ($rowRef eq "0") ) {
+			$rowAsString = "?";
+		} else {
+        	($rowAsString, my $numNonEmptyFields) = PMSUtil::CleanAndConvertRowIntoString( $rowRef );
+		}
+		if( ($rowNum eq "") || ($rowNum eq "0") ) {
+			$rowNum = "?";
+		}
         $totalErr = "! ERROR: $errStr: [row $rowNum, '$rowAsString']\n";
     }
     PMSLogging::printLog( $totalErr );

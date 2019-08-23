@@ -10,7 +10,6 @@ use lib 'PMSPerlModules';
 require PMSLogging;
 require PMSConstants;
 require Devel::StackTrace;
-# NOTE:  Instead of above see PrintStack() below
 
 
 
@@ -26,20 +25,25 @@ sub trim($) {
 
 
 
-
-
-# GenerateCanonicalDurationForDB - convert the passed text representation of a time duration into
+# GenerateCanonicalDurationForDB_v2 - convert the passed text representation of a time duration into
 #	an integer representing the duration in hundredths of a second.
 #
 # PASSED:
 #	$passedDuration - the duration in text form, e.g. 1:03:33.09 (1 hour, 3 minutes, 33 seconds, 9 hundredths
 #		of a second)
-#	$eventId - the event that this duration is used for.  We use this to get an idea of a "valid duration"
+#	$passedDistance - the distance of the event that this duration is used for, in meters/yards, or 0.
+#		If 0 then it, and the logic involved, is ignored.
+#		We use this to get an idea of a "valid duration"
 #		so we can do some error detection and error correction.  For example, if the event is a 1 mile
-#		swim and the duration is "23.33" we know that it's not 23 seconds and 33 hundredths!  So we'll 
-#		log an error and assume it's 23 minutes and 33 seconds.
-#	$rowRef - reference to the result row
-#	$rowNum - the number of the result row in the result file
+#		swim (1760 yards) and the duration is "23.33" we know that it's not 23 seconds and 33 hundredths!  
+#		So we'll log an error and try to adjust the passed duration so that it makes sense.  Even if
+#		we can't make sense of the passed duration we'll return a valid duration.
+#		NOTE: if 0 or undefined then we will probably make false assumptions and generate
+#		bogus errors which you can ignore if you dare...
+#	$rowRef - reference to the result row.  Used in log messages only, so it can be "" if unknown.
+#	$rowNum - the number of the result row in the result file.  Used in log messages only, 
+#		so it can be "" if unknown.
+#	$extraMsg - (optional) an extra string appended to log messages.  If not supplied then "" is assumed.
 #
 # RETURNED:
 #	$returnedDuration - the equivalent duration as an integer in hundredths of a second.
@@ -51,45 +55,38 @@ sub trim($) {
 # 	Possible formats:
 #	- THE CORRECT FORMAT:  hh:mm:ss.tt (e.g. 0:19:51.50) - 19*60*100 + 51*100 + 50
 # 	- . (dot) or comma or semicolons in place of colons - replace them with colons
+#	- ss.tt - also easily confused with hh:mm and mm:ss, except if a '.' is used assume ss.tt
 #	- hh:mm  mm:ss - ambiguious...assume mm:ss and convert to 00:mm:ss
 #	- mm:ss.tt - assume 0:mm:ss.tt
 #	- use the event distance to make an intelligent guess if we have to.
 #
-sub GenerateCanonicalDurationForDB($$$$) {
-	my ($passedDuration, $eventId, $rowRef, $rowNum) = @_;
-	my $convertedTime = $passedDuration;
-	# get the distance that this time is for:
-	my $distance = .5;		# in miles
-	my $dbh = PMS_MySqlSupport::GetMySqlHandle();
-	my ($sth, $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,
-		"SELECT Distance FROM Events where EventId = '$eventId'" );
-	my $resultHash = $sth->fetchrow_hashref;
-	if( !defined( $resultHash ) ) {		
-        PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB(): failed to get the " .
-        	"distance for event id '$eventId' - assume 1/2 mile.  This may cause false errors later.", 1 );
+sub GenerateCanonicalDurationForDB_v2($$$$) {
+	my ($passedDuration, $passedDistance, $rowRef, $rowNum, $extraMsg) = @_;
+	if( !defined $extraMsg ) {
+		$extraMsg = "";
 	} else {
-		$distance = $resultHash->{'Distance'};
+		$extraMsg = "\n    ($extraMsg)";
 	}
-	# what are the maximum and minimum duration for the distance we just computed?
-	my $minDuration = 100*60*13*$distance;		# 13 minute mile time!  pretty fast!
-	my $maxDuration = 100*60*120*$distance;		# 2hr mile time!  pretty slow!
-
+	my $convertedTime = $passedDuration;
+	
 	if( !defined $convertedTime ) {
 		PMSLogging::DumpRowError( $rowRef, $rowNum, 
-			"PMSUtil::GenerateCanonicalDurationForDB(): undefined time in GenerateCanonicalDurationForDB " .
-			"- use \"9:59:59.00\"\n", 1 );
+			"PMSUtil::GenerateCanonicalDurationForDB_v2(): undefined time in GenerateCanonicalDurationForDB_v2 " .
+			"- use \"9:59:59.00\"$extraMsg\n", 1 );
 		$convertedTime = "9:59:59.00";
 	}
 	my $returnedDuration = 0;
 	$convertedTime =~ s/^\s+//;
 	$convertedTime =~ s/\s+$//;
 	my( $hr, $min, $sec, $hundredths );
-	if( $convertedTime =~ m/^\d+[.,;:]\d+[:]\d+$/ ) {
+	if( $convertedTime =~ m/^\d+\.\d+$/ ) {
+		$convertedTime = "0:0:$convertedTime";
+	}elsif( $convertedTime =~ m/^\d+[.,;:]\d+[:]\d+$/ ) {
 		# e.g. 1[:;,.]34:12 = 1:34:12 = 1 hour, 34 minutes, 12 seconds:  this is fine, but add the tenths
 		$convertedTime =~ s/[.,;]/:/g;		# use only ':' for separaters
 		$convertedTime = "$convertedTime.00";
-	} elsif( $convertedTime =~ m/^\d+[.,;:]\d+$/ ) {
-		# e.g. 23[:;,.]45 = 23:45 is ambiguious, assume 0:23:45, which is 0 hours, 23 minutes, 45 seconds
+	} elsif( $convertedTime =~ m/^\d+[,;:]\d+$/ ) {
+		# e.g. 23[:;,]45 = 23:45 is ambiguious, assume 0:23:45, which is 0 hours, 23 minutes, 45 seconds
 		$convertedTime =~ s/[.,;]/:/g;		# use only ':' for separaters
 		$convertedTime = "00:$convertedTime.00";
 	} elsif( $convertedTime =~ m/^(\d+)[.,;:](\d+).(\d+)$/ ) {
@@ -118,8 +115,8 @@ sub GenerateCanonicalDurationForDB($$$$) {
 		$hundredths = "00";
         $convertedTime = "$hr:$min:$sec.$hundredths";
 	} else {
-		PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB():invalid time " .
-			"in GenerateCanonicalDurationForDB: '$passedDuration'", 1 );		
+		PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():invalid time " .
+			"in GenerateCanonicalDurationForDB_v2: '$passedDuration'$extraMsg", 1 );		
 		$convertedTime = "";
 	}
 	if( $convertedTime ne "" ) {
@@ -131,53 +128,54 @@ sub GenerateCanonicalDurationForDB($$$$) {
         $hundredths = $4;
 		$returnedDuration = $hr*60*60*100 + $min*60*100 + $sec*100 + $hundredths;
 	}
-	# now check to see if this duration makes sense
-	if( $returnedDuration < $minDuration ) {
-		my $strMinDuration = GenerateDurationStringFromHundredths( $minDuration );
-		my $strDuration = GenerateDurationStringFromHundredths( $returnedDuration );
-		my $updatedReturnedDuration = $returnedDuration + 60*60*100;		# add an hour
-		my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
-		PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB():computed " .
-			"duration is much too FAST!\n      (expected a time of at least $strMinDuration) " .
-			"  Duration='$returnedDuration' ($strDuration), " .
-			"distance of swim='$distance'\n      CHANGED TO $updatedReturnedDuration ($strUpdatedReturnedDuration)", 0 );
-		$returnedDuration = $updatedReturnedDuration;
-	} elsif( $returnedDuration > $maxDuration ) {
-		my $strMaxDuration = GenerateDurationStringFromHundredths( $maxDuration );
-		my $strDuration = GenerateDurationStringFromHundredths( $returnedDuration );
-		my $updatedReturnedDuration = $hr*60*100 + $min*100 + $sec;		# hr becomes minutes, minutes become seconds, etc...
-		my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
-		PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB():computed " .
-			"duration is much too SLOW!\n      (expected a time of no more than $strMaxDuration) " .
-			"  Duration='$returnedDuration' ($strDuration), " .
-			"distance of swim='$distance'\n      CHANGED TO $updatedReturnedDuration ($strUpdatedReturnedDuration)", 0 );
-		$returnedDuration = $updatedReturnedDuration;
-	}
+	my $strReturnedDuration = GenerateDurationStringFromHundredths( $returnedDuration ) .
+		" ($returnedDuration)";
 	
-	# now check to see if this duration makes sense
-	if( $returnedDuration < $minDuration ) {
-		my $strMinDuration = GenerateDurationStringFromHundredths( $minDuration );
-		my $strDuration = GenerateDurationStringFromHundredths( $returnedDuration );
-		PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB():computed " .
-			"duration is much too FAST! AGAIN!\n      (expected a time of at least $strMinDuration) " .
-			"  Duration='$returnedDuration' ($strDuration), " .
-			"distance of swim='$distance'", 1 );
-	} elsif( $returnedDuration > $maxDuration ) {
-		my $strMaxDuration = GenerateDurationStringFromHundredths( $maxDuration );
-		my $strDuration = GenerateDurationStringFromHundredths( $returnedDuration );
-		PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB():computed " .
-			"duration is much too SLOW! AGAIN!\n      (expected a time of no more than $strMaxDuration) " .
-			"  Duration='$returnedDuration' ($strDuration), " .
-			"distance of swim='$distance'", 1 );
+	if( $passedDistance > 0 ) {
+		# now check to see if this duration makes sense
+		# what are the maximum and minimum duration (hundredths) for the passed distance?
+		my $minDuration = (100*$passedDistance*18)/50;		# 18 seconds per 50 - pretty fast!
+		my $strMinDuration = GenerateDurationStringFromHundredths( $minDuration ) . " ($minDuration)";
+		my $maxDuration = (100*$passedDistance*150)/50;	# 2.5 minutes per 50 -  pretty slow!
+		my $strMaxDuration = GenerateDurationStringFromHundredths( $maxDuration ) . " ($maxDuration)";
+	
+		if( $returnedDuration < $minDuration ) {
+			my $updatedReturnedDuration = $returnedDuration + 60*60*100;		# add an hour
+			my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
+			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+				"duration $strReturnedDuration is much too FAST!\n      (expected a time of at least $strMinDuration), " .
+				"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
+				"($strUpdatedReturnedDuration)$extraMsg", 1 );
+			$returnedDuration = $updatedReturnedDuration;
+		} elsif( $returnedDuration > $maxDuration ) {
+			my $updatedReturnedDuration = $hr*60*100 + $min*100 + $sec;		# hr becomes minutes, minutes become seconds, etc...
+			my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
+			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+				"duration $strReturnedDuration is much too SLOW!\n      (expected a time of no more than $strMaxDuration) " .
+				"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
+				"($strUpdatedReturnedDuration)$extraMsg", 1 );
+			$returnedDuration = $updatedReturnedDuration;
+		}
+		
+		# now check to see if this duration makes sense
+		if( $returnedDuration < $minDuration ) {
+			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+				"duration is much too FAST! AGAIN!\n      (expected a time of at least $strMinDuration) " .
+				"  Duration=$strReturnedDuration, " .
+				"distance of swim='$passedDistance'$extraMsg", 1 );
+		} elsif( $returnedDuration > $maxDuration ) {
+			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+				"duration is much too SLOW! AGAIN!\n      (expected a time of no more than $strMaxDuration) " .
+				"  Duration=$strReturnedDuration, " .
+				"distance of swim='$passedDistance'$extraMsg", 1 );
+		}
 	}
 	return $returnedDuration;
-} # end of GenerateCanonicalDurationForDB()
+} # end of GenerateCanonicalDurationForDB_v2()
 
 
 
-
-
-# GenerateDurationStringFromHundredths - basically the opposite of GenerateCanonicalDurationForDB()
+# GenerateDurationStringFromHundredths - basically the opposite of GenerateCanonicalDurationForDB_v2()
 #
 # PASSED:
 #	$hundredths - a duration as an integer representing hundredths of seconds
@@ -193,10 +191,20 @@ sub GenerateCanonicalDurationForDB($$$$) {
 #		mm: is missing if hours is 0 and minutes is 0, and mm is a single digit if
 #			hours is 0 and mm < 10
 #
+#	If the passed $hundredths is undefined (or equal to "(undef)") an error will be logged
+#	and a bogus value will be assumed so the program can go on.
+#
 sub GenerateDurationStringFromHundredths( $ ) {
 	my $hundredths = $_[0];
 	my $duration;
 	my( $hr, $min, $sec );
+	
+	if(  (!defined $hundredths) || ($hundredths eq "(undef)") ) {
+		PMSLogging::PrintLog( "", "", "PMSUtil::GenerateDurationStringFromHundredths(): " .
+			"undefined value.  Stack trace:\n" . GetStackTrace() );
+		$hundredths = 9999;
+	}
+	
 	$hr = int($hundredths / (60*60*100));
 	$hundredths -= $hr*(60*60*100);
 	$min = int($hundredths / (60*100));
@@ -247,6 +255,9 @@ sub GenerateCanonicalDOB($) {
 } # end of GenerateCanonicalDOB()
 
 
+
+
+#!todo   handle passed date as empty string!
 
 # ConvertDateToISO( $passedDate ) -  convert m[m]/d[d]/[yy]yy (or something similar) into yyyy-mm-dd
 # 
@@ -1589,16 +1600,18 @@ sub GetMostRecentVersion( $$ ) {
 } # end of GetMostRecentVersion()
 
 
-# thanks to:  https://stackoverflow.com/questions/229009/how-can-i-get-a-call-stack-listing-in-perl/56596630#56596630
+
+
+sub GetStackTrace {
+	my $trace = Devel::StackTrace->new;
+	my $fullTrace = "***Begin Stack Trace:\n" . $trace . "***End Stack Trace.\n";
+	return $fullTrace;
+} # end of GetStackTrace()
+
+
 sub PrintStack {
-    my ($package, $filename, $line, $subroutine, $hasargs, $wantarray, $evaltext, $is_require, $hints, $bitmask, $hinthash);
-    my $i = 1;
-    my @r;
-    while (@r = caller($i)) {
-        ($package, $filename, $line, $subroutine, $hasargs, $wantarray, $evaltext, $is_require, $hints, $bitmask, $hinthash) = @r;
-        print "$filename:$line $subroutine\n";
-        $i++;
-    }
+	print GetStackTrace();
 } # end of PrintStack()
+
 
 1;  # end of module

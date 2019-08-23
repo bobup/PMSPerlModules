@@ -24,7 +24,6 @@ use warnings;
 
 
 # initialized when the database is initialized:
-#my $yearBeingProcessed;
 
 # the %databaseParameters hash is used to store the parameters for every database used by the application using
 # this module.  Every set of parameters is associated with an id (known as the 'dbid', e.g. "default" or "TopTen").  
@@ -281,6 +280,7 @@ sub PrepareAndExecute {
 		    		$status = "Can't execute-1: '$qry' (error: '$errStr')\n";
 		        }
 		    } else {
+
 		        $rv = $sth->execute;
 		        if( !$rv ) { 
 		        	my $errStr = $sth->errstr;
@@ -292,6 +292,7 @@ sub PrepareAndExecute {
 			# got an error - try to recover
 			$weRetried++;
 			PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retrying #$weRetried...)", 1);
+			PMSUtil::PrintStack();
 			if( $sth ) {
 				# we're done with this statement handle, too.  We'll get another when we loop and try again
 				$sth->finish;
@@ -1549,6 +1550,8 @@ sub NumSwims( $$ ) {
 #   rowRef - reference to a string
 #	rowNum -
 #
+# NOTE: used for OW only
+#
 sub AddSwim( $$$$$$$ ) {
 	(my $eventId, my $swimmerId, my $time, my $recordedPlace, my $place, my $rowRef, my $rowNum) = @_;
 	my $dbh = GetMySqlHandle();
@@ -1559,7 +1562,9 @@ sub AddSwim( $$$$$$$ ) {
 	
 #todo compute age and agegroup
 	# convert the time into an int (number of hundreths)
-	my $timeAsInt = PMSUtil::GenerateCanonicalDurationForDB( $time, $eventId, $rowRef, $rowNum );
+	my $timeAsInt = PMSUtil::GenerateCanonicalDurationForDB_v2( $time, 
+		DistanceForThisEvent( $eventId, $rowRef, $rowNum ),
+		$rowRef, $rowNum );
 	
 	(my $sth, my $rv) = PrepareAndExecute( $dbh, 
 		"INSERT INTO Swim " .
@@ -1570,6 +1575,34 @@ sub AddSwim( $$$$$$$ ) {
 } # end of AddSwim()
 
 
+# NOTE: used for OW only
+sub DistanceForThisEvent( $$$ ) {
+	my ($eventId,$rowRef, $rowNum) = @_;
+	my $distance;
+	
+	if( (defined $eventId) && ($eventId != 0) ) {
+		my $dbh = PMS_MySqlSupport::GetMySqlHandle();
+		my ($sth, $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,
+			"SELECT Distance FROM Events where EventId = '$eventId'" );
+		my $resultHash = $sth->fetchrow_hashref;
+		if( !defined( $resultHash ) ) {		
+	        PMSLogging::DumpRowError( $rowRef, $rowNum, "PMS_MySqlSupport::DistanceForThisEvent(): " .
+	        	"failed to get the distance for event id '$eventId' - assume 1/2 mile.  " .
+	        	"This may cause false errors later.", 1 );
+	        $distance = 0.5 * 1760;
+		} else {
+			$distance = $resultHash->{'Distance'} * 1760;
+		}
+	} else {
+		# our sanity checks will likely make invalid assumptions
+        PMSLogging::DumpRowError( $rowRef, $rowNum, "PMS_MySqlSupport::DistanceForThisEvent(): " .
+        	"No eventId passed, which means we can't make a reasonable assumption for the " .
+        	"distance for event for which we have a time - assume 1/2 mile.  " .
+        	"This may cause false errors later.", 1 );
+        $distance = 0.5 * 1760;
+	}
+	return $distance;
+} # DistanceForThisEvent()
 
 
 # InitialRecordThisEvent - record all the details that we know about a single event into our DB
