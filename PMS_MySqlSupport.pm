@@ -260,7 +260,7 @@ sub PrepareAndExecute {
 	}
 	
 	# NOTE: The following loop is here so that we can recover a lost database handle.
-	# Experience has shown that the DB handle may become stale and the following SELECT 
+	# Experience has shown that the DB handle may become stale and the following execute 
 	# will fail with this error:
 	#	DBD::mysql::st execute failed: Lost connection to MySQL server during query at....
 	# which is caused by:
@@ -268,26 +268,33 @@ sub PrepareAndExecute {
 	# This has only been seen on the PMS Linux web server.
 	for( my $tryCount=1; ($status ne "") && ($tryCount < 3); $tryCount++ ) {
 		$status = "";
+		eval {
 		$sth = $dbh->prepare( $qry );
-		if( !$sth ) {
-	    	$status = "Can't prepare: '$qry'\n";
-		} else {
-		    if( $i >= 3 ) {
-		# todo: need to fix this to be more general
-		        $rv = $sth->execute($_[3], $_[4] );
-		        if( !$rv ) { 
-		        	my $errStr = $sth->errstr;
-		    		$status = "Can't execute-1: '$qry' (error: '$errStr')\n";
-		        }
-		    } else {
+			if( !$sth ) {
+		    	$status = "Can't prepare: '$qry'\n";
+			} else {
+			    if( $i >= 3 ) {
+			# todo: need to fix this to be more general
+			        $rv = $sth->execute($_[3], $_[4] );
+			        if( !$rv ) { 
+			        	my $errStr = $sth->errstr;
+			    		$status = "Can't execute-1: '$qry' (error: '$errStr')\n";
+			        }
+			    } else {
+			        $rv = $sth->execute;
+			        if( !$rv ) { 
+			        	my $errStr = $sth->errstr;
+			    		$status = "Can't execute-2: '$qry' (error: '$errStr')\n";
+			        }
+			    }
+			}
+			$status eq "";
+		} or do {
+			if( $@ ) {
+				$status .= "...Exception thrown: $@\n";
+			}
+		};
 
-		        $rv = $sth->execute;
-		        if( !$rv ) { 
-		        	my $errStr = $sth->errstr;
-		    		$status = "Can't execute-2: '$qry' (error: '$errStr')\n";
-		        }
-		    }
-		}
 		if( $status ) {
 			# got an error - try to recover
 			$weRetried++;

@@ -1604,7 +1604,7 @@ sub GetMostRecentVersion( $$ ) {
 
 sub GetStackTrace {
 	my $trace = Devel::StackTrace->new;
-	my $fullTrace = "***Begin Stack Trace:\n" . $trace . "***End Stack Trace.\n";
+	my $fullTrace = "***Begin Stack Trace:\n" . $trace . "***End Stack Trace.";
 	return $fullTrace;
 } # end of GetStackTrace()
 
