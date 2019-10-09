@@ -110,7 +110,12 @@ sub ReadPMS_RSIDNData( $$ ) {
 				"    than the current RSIDN table ($numRSIDNSwimmerRows).    This is a WARNING only, " .
 				"but it looks like the spreadsheet\n    ($filename) might be truncated.", 1 );
 		}
-		( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE $tableName" );
+		( my $sth, my $rv, my $status) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE $tableName" );
+		if( $status ne "" ) {
+			# this might cause problems since we might have extra rows in our RSIND table...
+			PMSLogging::DumpError( "", "", "PMS_ImportPMSData::ReadPMS_RSIDNData(): Error TRUNCATEing TABLE " .
+				"$tableName.  Msg: '$status'", 1 );
+		}
 		
 		PMSLogging::PrintLog( "", "", "Yes! reading '$filename'...", 1 );
 		# next, clear the RSIDN data in our meta data so if we don't complete the reading of this RSIDN file
