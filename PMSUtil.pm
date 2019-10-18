@@ -1564,6 +1564,33 @@ sub CanonicalOWCourse( $ ) {
 } # end of CanonicalOWCourse()
 
 
+sub GetFullFileNameFromPattern( $$$ ) {
+	my ($fileNamePattern, $parentDir, $fileType) = @_;
+	my $swimmerDataFile = undef;
+	
+	if( ! defined( $fileNamePattern ) ) {
+		# no file name pattern - this is an ERROR!
+		PMSLogging::DumpError( "", 0, "A $fileType file name pattern wasn't found in the properties.txt file -" .
+			"we will assume that there is no new $fileType file to process, BUT FIX THIS!", 1 );
+	} else {
+		# got a file name pattern:
+		# We will use the most recent version of the file we can find in the $parentDir
+		# directory:
+		$swimmerDataFile = 	PMSUtil::GetMostRecentVersion( $fileNamePattern, $parentDir );
+		if( !defined $swimmerDataFile ) {
+			# no file found matching the pattern - this is an ERROR!
+			PMSLogging::DumpError( "", 0, "A $fileType file wasn't found in\n" .
+				"    '$parentDir'\n" .
+				"    using the pattern '$fileNamePattern'. " .
+				"we will assume that there is no new $fileType file to process, BUT FIX THIS!\n" .
+				"    (Did you mean to execute with '-empty'?)", 1 );
+		}
+	}
+	return $swimmerDataFile;
+} # end of GetFullFileNameFromPattern()
+
+
+
 
 #	$swimmerDataFile = 	PMSUtil::GetMostRecentVersion( ".*RSIDN.*", $PMSSwimmerData );
 # GetMostRecentVersion - scan the passed directory and return the newest version of the file
@@ -1583,9 +1610,11 @@ sub GetMostRecentVersion( $$ ) {
 	my $fileName;
 	my $newestTime = 2**31-1;
 	
+	#print "GetMostRecentVersion():filePattern='$filePattern', directory='$directory'\n";
 	opendir(my $DH, $directory) or die "PMSUtil::GetMostRecentVersion(): Failed to open '" .
 		"$directory': $! - ABORT!";
 	while (defined (my $file = readdir($DH))) {
+		#print "GetMostRecentVersion():file='$file'\n";
 		if( $file =~ m/$filePattern/ ) {
 			my $path = File::Spec->catfile( $directory, $file );
 			next unless (-f $path);           # ignore non-files - automatically does . and ..
@@ -1596,6 +1625,7 @@ sub GetMostRecentVersion( $$ ) {
 		}
 	}
 	closedir($DH);
+	#print "GetMostRecentVersion():return fileName='$fileName'\n";
 	return $fileName;
 } # end of GetMostRecentVersion()
 

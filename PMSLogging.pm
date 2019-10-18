@@ -60,7 +60,8 @@ sub InitLogging( $ ) {
 } # end of InitLogging()
 
 
-# printLog - print the passed string to the log file if it exists, otherwise to stdout
+# printLog - print the passed string to the log file if it exists, otherwise to stdout.
+# A newline is NOT AUTOMATIC - you must put it into the passed string if you want one.
 sub printLog( $ ) {
 	if( defined fileno( LOG ) ) {
 		print LOG $_[0];

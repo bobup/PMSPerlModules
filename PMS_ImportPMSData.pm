@@ -18,14 +18,16 @@ use PMSConstants;
 use PMSLogging;
 require PMSUtil;
 
-my $debug = 1;
+my $debug = 0;
 
 # Forward declaration....
 sub ReadPMS_RSIDNData( $$ );
 sub GetRSINDRow( $$$$$ );
-sub GetPMSTeams( $$ );
 sub RSINDFileIsNew( $$ );
+sub GetPMSTeams( $$ );
 sub GetPMSTeams_Excel( $$ );
+sub GetPMSTeams_txt( $$ );
+sub GetMergedMembers($$);
 
 # we allow 2 digit years but complain about it.  The generator of these data should know better!
 my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
@@ -215,7 +217,9 @@ sub ReadPMS_RSIDNData( $$ ) {
 #	$filename - used for error logs
 #
 # RETURNED:
-#	$rowRef - populated with the contents of the row
+#	$rowRef - populated with the contents of the row, fields of which are:
+#		club, swimmerId, first, middle, last, address1, city, state, zip, country, dob, gender, regDate,
+#		email, reg
 #
 # NOTES:
 #	Any problems discovered with the data will result in a log message.
@@ -666,7 +670,7 @@ sub GetPMSTeams_Excel( $$ ) {
 
 # format:
 # Club Abbr	\t	Club Name	\t	#	\t	Year	\t	Reg. Date
-sub GetPMSTeams_txt( $ ) {
+sub GetPMSTeams_txt( $$ ) {
 	my ($clubDataFile, $yearBeingProcessed) = @_;
 	my $seperator = "\t";
 	my $lineNum = 0;
@@ -764,17 +768,17 @@ sub GetMergedMembers($$) {
     		$arr_ref = $sth2->fetchrow_arrayref();
     		my $lastMMFileName = $arr_ref->[0];
     		if( !defined $lastMMFileName ) {
-				print "The MergedMemberFileName in Meta is undefined, so it didn't match '$simpleName'\n" if( $debug > 0 );
+				PMSLogging::PrintLogNoNL( "", "", "...YES (The MergedMemberFileName in Meta is undefined, so it didn't match '$simpleName')", 1 );
     			# last Merged Member file read is different from what we're asked to read
     			$refreshMMFile = 1;
     		} elsif( $lastMMFileName ne $simpleName ) {
-				print "The MergedMemberFileName in Meta ($lastMMFileName) didn't match '$simpleName'\n" if( $debug > 0 );
+				PMSLogging::PrintLogNoNL( "", "", "...YES (The MergedMemberFileName in Meta ($lastMMFileName) didn't match '$simpleName')", 1 );
     			# last RSIDN file read is different from what we're asked to read
     			$refreshMMFile = 1;
     		}
 		} else {
 			# we have no Merged Member data - read the Merged Member file
-			print "We found no data in the MergedMembers table\n" if( $debug > 0 );
+			PMSLogging::PrintLogNoNL( "", "", "...YES (We found no data in the MergedMembers table)", 1 );
     		$refreshMMFile = 1;
 		}
 	}
@@ -784,7 +788,7 @@ sub GetMergedMembers($$) {
 		( my $sth, my $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh, "TRUNCATE TABLE MergedMembers" );
 		
 #		my $foundIllegalBirthdate = 0;		# set to 1 if an illegal birthdate (year only 2 digits) supplied
-		PMSLogging::PrintLog( "", "", "Yes! reading '$filename'...", 1 );
+		PMSLogging::PrintLog( "", "", "...reading '$filename'...", 1 );
 	    # read the spreadsheet
 	    my $g_ref = ReadData( $filename );
 	    # $g_ref is an array reference
@@ -866,6 +870,7 @@ sub GetMergedMembers($$) {
 
 	        my $fullTeamName = $g_sheet1_ref->{"D$rowNum"};
 	        my $dob = $g_sheet1_ref->{"E$rowNum"};
+	        my $dobC = PMSUtil::GenerateCanonicalDOB( $dob );
 	        
 	        # add an entry into our MergedMembers table
     		($sth,  $rv) = PMS_MySqlSupport::PrepareAndExecute( $dbh,
@@ -873,7 +878,7 @@ sub GetMergedMembers($$) {
     			"(FirstName, MiddleInitial, LastName, OldUSMSSwimmerId, NewUSMSSwimmerId, " .
     			"TeamFullName, DateOfBirth) " .
     			"VALUES (\"$firstName\", \"$middleInitial\", \"$lastName\", \"$oldUSMSSwimId\", \"$newUSMSSwimId\", " .
-    			"\"$fullTeamName\", \"$dob\")" );
+    			"\"$fullTeamName\", \"$dobC\")" );
 	        #print "old: '$oldUSMSSwimId', new='$newUSMSSwimId', name='$fullName' ('$firstName' '$middleInitial' '$lastName'), team='$fullTeamName', dob='$dob'\n";
 	    } # end of for( my $rowNum = 2; $rowNum <= $numRows...
 	    
