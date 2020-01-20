@@ -4,7 +4,7 @@
 # Copyright (c) 2016 Bob Upshaw.  This software is covered under the Open Source MIT License 
 
 package PMSStoreSingleRow;
-use lib 'PMSPerlModules';
+#use lib 'PMSPerlModules';
 use PMSConstants;
 require PMSStruct;
 require PMSUtil;

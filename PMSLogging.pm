@@ -10,7 +10,7 @@ use diagnostics;
 use strict;
 use warnings;
 
-use lib 'PMSPerlModules';
+#use lib 'PMSPerlModules';
 require PMSConstants;
 use IO::Handle;		# for flush()
 

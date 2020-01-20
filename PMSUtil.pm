@@ -6,7 +6,7 @@
 package PMSUtil;
 use strict;
 
-use lib 'PMSPerlModules';
+#use lib 'PMSPerlModules';
 require PMSLogging;
 require PMSConstants;
 require Devel::StackTrace;

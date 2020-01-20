@@ -6,7 +6,7 @@
 package PMSMacros;
 
 use File::Basename;
-use lib 'PMSPerlModules';
+#use lib 'PMSPerlModules';
 use PMSConstants;
 use PMSLogging;
 require PMSUtil;

@@ -7,7 +7,7 @@ package PMS_MySqlSupport;
 
 use DBI;
 
-use lib 'PMSPerlModules';
+#use lib 'PMSPerlModules';
 use PMSConstants;
 use PMSLogging;
 require PMSUtil;
