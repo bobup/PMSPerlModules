@@ -8,13 +8,18 @@ package PMSProcess2SingleFile;
 use strict;
 use Spreadsheet::Read;
 use Text::CSV_XS;
-#use lib 'PMSPerlModules';
 require PMSUtil;
 require PMSConstants;
 require PMSStoreSingleRow;
 require PMS_MySqlSupport;
 
 
+#use lib '../PerlCpan/Graphics-ColorUtils-0.17/lib';
+#use lib '../PerlCpan/Spreadsheet-ParseXLSX-0.27/lib';
+#use Spreadsheet::ParseXLSX;
+
+
+#use Spreadsheet::XLSX;
 
 
 ### CONSTANTS that control the logic

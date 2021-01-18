@@ -19,6 +19,9 @@ our $NO_RESULT_FILE_PROCESSING = 0;		# by default we will initialize the DB and 
 our $EMPTY_ACCUMULATED_POINTS = 0;		# by default we will NOT produce an "empty" Accumulated Points page, and we
 										#	expect data to be available for processing.  If set to 1 we will ignore
 										#	any data and generate an empty Accumulated Points page.
+our $CANCELLED_ACCUMULATED_POINTS = 0;	# by default we will NOT produce a "cancelled" Accumulated Points page, and we
+										#	expect data to be available for processing.  If set to 1 we will ignore
+										#	any data and generate a cancelled Accumulated Points page.
 our $SHOW_ONLY_SWIMMERS_WITH_POINTS = 1;				# true if we display only swimmers who earned points; false if we display all swimmers who swam
 
  #  need to export this correctly...
