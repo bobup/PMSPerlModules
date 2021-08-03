@@ -190,7 +190,7 @@ sub DumpWarning {
 # DumpNote - dump a note to the log file, and optionally to the console
 #
 # PASSED:
-#	$line - the result line from a result file being processed when this ERROR is dumped.
+#	$line - the result line from a result file being processed when this NOTE is dumped.
 #		Set to "" (or 0) if not known.
 #	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the note to dump
