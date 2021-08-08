@@ -60,7 +60,7 @@ for( @AGEGROUPS_MASTERS ) {
 our @arrOfOrg = ('PAC', 'USMS');
 
 # we use results from different courses (short course, long course, open water, etc)
-our @arrOfCourse = ('SCY', 'SCM', 'LCM', 'OW', 'SCY Records', 'SCM Records', 'LCM Records', 'ePostal');
+our @arrOfCourse = ('SCY', 'SCM', 'LCM', 'OW', 'SCY Records', 'SCM Records', 'LCM Records', 'ePostal', 'ePostal Records');
 
 # Define the points for each place.  If a swimmer finishes in a place > $MAXPLACE they get no points.
 our @PLACE = (); 
