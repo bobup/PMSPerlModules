@@ -210,7 +210,9 @@ sub StoreResult {
     if( $lastRecordedPlaceSeen == $recordedPlace ) {
 		# there was a tie in the results
 		$computedPlace = $computedPlace - 1 - $numTiesSeenInResults;
-		PMSLogging::DumpNote( $line, $rowNum, "Found a tie (swimmer $swimmerId) in file $raceFileName", 0 );
+		PMSLogging::DumpNote( $line, $rowNum, "PMSStoreSingleRow::StoreResult(): " .
+			"Found a tie (swimmer $swimmerId) in file $raceFileName." . 
+			"computedPlace=$computedPlace, lastRecordedPlaceSeen=$lastRecordedPlaceSeen", 1 );
 		$numTiesSeenInResults++;
     } elsif( $recordedPlace == $computedPlace+$numNonPMSSwimmersInThisGroup ) {
     	# the place we see on this row is what we expect

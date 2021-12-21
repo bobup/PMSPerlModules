@@ -96,7 +96,41 @@ our @trColor = ();
 $trColor[0] = "#D9D9D9";
 $trColor[1] = "#FFFFFF";
 
-
+# Define the seasons for each course:
+# we must consider only those results occuring during the season of interest.  A season spans
+# dates that are dependent on the course, so we will define them here.  Examples are in terms
+# of the 2016 season:
+our %season = ( 
+	"SCYstart"	=> "-06-01",		# SCY season is 2015-06-01 through 2016-05-31
+	"SCYend"	=> "-05-31",
+	"SCMstart"	=> "-01-01",		# SCM season is 2016-01-01 through 2016-12-31
+	"SCMend"	=> "-12-31",
+	"LCMstart"	=> "-10-01",		# LCM season is 2015-10-01 through 2016-09-30
+	"LCMend"	=> "-09-30"
+	);
+### October, 2021 change by USMS:
+# [Specifically, the House of Delegates voted in favor of this rule:]
+#  “105.1.2 Deadlines – Times to be considered for records and Top 10 times shall be achieved 
+#  and submitted as follows:
+#   Long Course Meters times shall be achieved on or before September 30 (table)
+# [In addition, the following was added:]
+#++  Times to be considered for records and Top 10 times shall be achieved on or 
+#++  before October 10, 2021, for Long Course Meters. This provision will be implemented 
+#++  immediately following the conclusion of the annual meeting, expire at the conclusion 
+#++  of the LCM National Championship meet and will not be included in the 2022 USMS 
+#++  Masters Swimming Code of Regulations and Rules of Competition.”
+our $LCMEndOfSeasonDay = "September 30";
+sub FixLCMSeasonRangeFor2021( $ ) {
+	my $yearBeingProcessed = $_[0];
+	if( $yearBeingProcessed eq "2021" ) {
+		$season{"LCMend"} = "-10-10";
+		$LCMEndOfSeasonDay = "October 10";
+	}
+	
+	
+	
+	
+} # end of FixLCMSeasonRangeFor2021()
 
 
 1;  # end of module

@@ -138,7 +138,19 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 		my $strMinDuration = GenerateDurationStringFromHundredths( $minDuration ) . " ($minDuration)";
 		my $maxDuration = (100*$passedDistance*150)/50;	# 2.5 minutes per 50 -  pretty slow!
 		my $strMaxDuration = GenerateDurationStringFromHundredths( $maxDuration ) . " ($maxDuration)";
-	
+
+		#### 13Dec2021: Wouldn't you know it...??? Today I found a valid time that was really slow (1/2 mile keller cove)
+		# belonging to an "older woman" (bless her heart - I'm almost her age! Damn!) that got flagged below as "too slow", and the
+		# code tried to convert it to a "reasonable" time, which was wrong and caught as TOO FAST!  So we're going
+		# to adjust this heuristic to be a bit more "understanding".
+		
+		# If you get the same kind of problem again adjust this as necessary...
+		my $superMaxDuration = (200*$passedDistance*150)/50;	# 5 minutes per 50 -  really slow!
+		my $strSuperMaxDuration = GenerateDurationStringFromHundredths( $superMaxDuration ) . " ($superMaxDuration)";
+
+		# we need to remember whether or not we change the returnedDuration in the following heuristic:
+		my $weChangedReturnedDuration = 0;
+		
 		if( $returnedDuration < $minDuration ) {
 			my $updatedReturnedDuration = $returnedDuration + 60*60*100;		# add an hour
 			my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
@@ -147,27 +159,38 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 				"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
 				"($strUpdatedReturnedDuration)$extraMsg", 1 );
 			$returnedDuration = $updatedReturnedDuration;
+			$weChangedReturnedDuration = 1;
 		} elsif( $returnedDuration > $maxDuration ) {
-			my $updatedReturnedDuration = $hr*60*100 + $min*100 + $sec;		# hr becomes minutes, minutes become seconds, etc...
-			my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
-			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
-				"duration $strReturnedDuration is much too SLOW!\n      (expected a time of no more than $strMaxDuration) " .
-				"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
-				"($strUpdatedReturnedDuration)$extraMsg", 1 );
-			$returnedDuration = $updatedReturnedDuration;
+			if(  $returnedDuration < $superMaxDuration ) {
+				PMSLogging::DumpRowWarning( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+					"duration $strReturnedDuration is pretty slow but we're going to go with it.\n" .
+					"      (expected a time of no more than $strMaxDuration) " .
+					"distance of swim='$passedDistance'\n       $extraMsg" );
+			} else {
+				my $updatedReturnedDuration = $hr*60*100 + $min*100 + $sec;		# hr becomes minutes, minutes become seconds, etc...
+				my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
+				PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+					"duration $strReturnedDuration is much too SLOW!\n      (expected a time of no more than $strSuperMaxDuration) " .
+					"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
+					"($strUpdatedReturnedDuration)$extraMsg", 1 );
+				$returnedDuration = $updatedReturnedDuration;
+				$weChangedReturnedDuration = 1;
+			}
 		}
 		
 		# now check to see if this duration makes sense
-		if( $returnedDuration < $minDuration ) {
-			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
-				"duration is much too FAST! AGAIN!\n      (expected a time of at least $strMinDuration) " .
-				"  Duration=$strReturnedDuration, " .
-				"distance of swim='$passedDistance'$extraMsg", 1 );
-		} elsif( $returnedDuration > $maxDuration ) {
-			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
-				"duration is much too SLOW! AGAIN!\n      (expected a time of no more than $strMaxDuration) " .
-				"  Duration=$strReturnedDuration, " .
-				"distance of swim='$passedDistance'$extraMsg", 1 );
+		if( $weChangedReturnedDuration ) {
+			if( $returnedDuration < $minDuration ) {
+				PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+					"duration is much too FAST! AGAIN!\n      (expected a time of at least $strMinDuration) " .
+					"  Duration=$strReturnedDuration, " .
+					"distance of swim='$passedDistance'$extraMsg", 1 );
+			} elsif( $returnedDuration > $maxDuration ) {
+				PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
+					"duration is much too SLOW! AGAIN!\n      (expected a time of no more than $strMaxDuration) " .
+					"  Duration=$strReturnedDuration, " .
+					"distance of swim='$passedDistance'$extraMsg", 1 );
+			}
 		}
 	}
 	return $returnedDuration;
@@ -232,7 +255,7 @@ sub GenerateDurationStringFromHundredths( $ ) {
 # GenerateCanonicalDOB - convert the passed birth date into a canonical form:
 #
 # PASSED:
-#	$dateOfBirth - a date in a form that allows us to figure out what it is, or an empty string or
+#	$dateOfBirth - a string of the form m[m]/d[d]/[yy]yy or some recognizable variation, or an empty string or
 #		undefined value.
 #
 # RETURNED:
@@ -259,10 +282,12 @@ sub GenerateCanonicalDOB($) {
 
 #!todo   handle passed date as empty string!
 
-# ConvertDateToISO( $passedDate ) -  convert m[m]/d[d]/[yy]yy (or something similar) into yyyy-mm-dd
+# ConvertDateToISO( $passedDate ) -  convert m[m]/d[d]/[yy]yy (or something similar) 
+#	into yyyy-mm-dd IF NECESSARY.
 # 
 # PASSED:
-#	$passedDate - a string of the form m[m]/d[d]/[yy]yy or some recognizable variation.
+#	$passedDate - a string of the form m[m]/d[d]/[yy]yy or some recognizable variation, OR
+#		a string of the form yyyy/mm/dd (which is already ISO format)
 #
 # RETURNED:
 #	a date in the form yyyy-mm-dd
@@ -279,15 +304,25 @@ sub ConvertDateToISO( $ ) {
 	my $month = $1;
 	my $day = $2;
 	my $year = $3;
-	# make sure the passed date is the correct format.  If not we'll us a default.
-	if( !defined $month ) {
-		my $xxx = $PMSConstants::debug;		# avoid compiler error below
-        PMSLogging::DumpError( "", "", "PMSUtil::ConvertDateToISO(): invalid date ('$passedDate') so we couldn't " .
-        	"figure out the date's components.  Assume default date ('$PMSConstants::INVALID_DOB').",
-        	"" ) if( $PMSConstants::debug > 0 );
-        $isoDate = $PMSConstants::INVALID_DOB;		# of the form 1900-01-01
+	# see if the passed date was already in ISO format:
+	if( length( $month ) == 4 ) {
+		# oops - bad assumption.  Swam the numbers around...
+		my $tmp = $year;
+		$year = $month;
+		$month = $day;
+		$day = $tmp;
+		$isoDate = "$year-$month-$day";
 	} else {
-		$isoDate = ConvertToISOPrimary( $year, $month, $day, $passedDate );
+		# make sure the passed date is the correct format.  If not we'll us a default.
+		if( !defined $month ) {
+			my $xxx = $PMSConstants::debug;		# avoid compiler error below
+			PMSLogging::DumpError( "", "", "PMSUtil::ConvertDateToISO(): invalid date ('$passedDate') so we couldn't " .
+				"figure out the date's components.  Assume default date ('$PMSConstants::INVALID_DOB').",
+				"" ) if( $PMSConstants::debug > 0 );
+			$isoDate = $PMSConstants::INVALID_DOB;		# of the form 1900-01-01
+		} else {
+			$isoDate = ConvertToISOPrimary( $year, $month, $day, $passedDate );
+		}
 	}
 	
 	return $isoDate;
@@ -313,6 +348,7 @@ sub ValidateISODate( $ ) {
 	my $year = $1;
 	my $month = $2;
 	my $day = $3;
+
 	# make sure the passed date is the correct format. 
 	if( defined $month ) {
 		my $isoDate = ConvertToISOPrimary( $year, $month, $day, $passedDate );
@@ -330,10 +366,10 @@ sub ValidateISODate( $ ) {
 sub ConvertToISOPrimary( $$$$ ) {
 	my ($year, $month, $day, $passedDate ) = @_;
 	my $yearBeingProcessed;
-	
+
 	$month = "0$month" if( length( $month ) < 2 );
 	if( ($month > 12) || ($month < 1) ) {
-		PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid month). " .
+		PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - '$month' is an invalid month). " .
 			"Changing to month '01'.  This needs to be corrected.", 1 );
 my $trace = Devel::StackTrace->new;
 print $trace->as_string; # like carp
@@ -837,7 +873,7 @@ sub FixInvalidAgeGroup( $$$ ) {
     my $fixed = 0;		# set to 1 once we think we fixed it
     if( ($age1 ne "") && ($age1 =~ m/^\d+$/) ) {
 	    if( $age1 == 18 ) {
-	    	$age2 = 25;
+	    	$age2 = 24;
 	    	$fixed = 1;
 	    } elsif( ($age1 > 24) && (($age1%5)==0) ) {
 	    	$age2 = $age1+4;
@@ -1302,24 +1338,18 @@ sub BreakFullNameIntoBrokenNames($$$) {
 #	ValidateDateWithinSeason( "2016-06-03", "SCM", "20", "16" ) will return an empty string because the 2016 SCM
 #		season includes June 3, 2016.
 #
-######### DATA:
-# we must consider only those results occuring during the season of interest.  A season spans
-# dates that are dependent on the course, so we will define them here.  Examples are in terms
-# of the 2016 season:
-my %season = ( 
-	"SCYstart"	=> "-06-01",		# SCY season is 2015-06-01 through 2016-05-31
-	"SCYend"	=> "-05-31",
-	"SCMstart"	=> "-01-01",		# SCM season is 2016-01-01 through 2016-12-31
-	"SCMend"	=> "-12-31",
-	"LCMstart"	=> "-10-01",		# LCM season is 2015-10-01 through 2016-09-30
-	"LCMend"	=> "-09-30"
-	);
+	
+	
 ######### CODE:
 sub ValidateDateWithinSeason( $$$ ) {
 	my( $date, $course, $yearBeingProcessed ) = @_;
 	my $minDate = "$yearBeingProcessed";		# e.g. '2016'
 	my $maxDate = "$yearBeingProcessed";		# e.g. '2016'
 	my $simpleCourse = $course;
+	
+	# make sure we know the dates defining the season for the passed course:
+	PMSConstants::FixLCMSeasonRangeFor2021( $yearBeingProcessed );
+	
 	$simpleCourse =~ s/^(...).*$/$1/;
 	my $result = "";
 	
@@ -1338,8 +1368,8 @@ sub ValidateDateWithinSeason( $$$ ) {
 		# Assume that this date does NOT fall within the season.
 		$result = "Illegal date ($date) - assume this date does not fall within the $simpleCourse season.";
 	} else {
-		$minDate .= $season{$simpleCourse . 'start'};
-		$maxDate .= $season{$simpleCourse . 'end'};
+		$minDate .= $PMSConstants::season{$simpleCourse . 'start'};
+		$maxDate .= $PMSConstants::season{$simpleCourse . 'end'};
 		
 		if( ($date lt $minDate) || ($date gt $maxDate) ) {
 			# the passed date is outside the passed season
