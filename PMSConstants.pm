@@ -120,12 +120,16 @@ our %season = (
 #++  of the LCM National Championship meet and will not be included in the 2022 USMS 
 #++  Masters Swimming Code of Regulations and Rules of Competition.”
 our $LCMEndOfSeasonDay = "September 30";
+our $LCMStartOfSeasonDay = "October 1";
 sub FixLCMSeasonRangeFor2021( $ ) {
 	my $yearBeingProcessed = $_[0];
 	if( $yearBeingProcessed eq "2021" ) {
 		$season{"LCMend"} = "-10-10";
 		$LCMEndOfSeasonDay = "October 10";
-	}
+	} elsif( yearBeingProcessed eq "2022" ) {
+		$season{"LCMstart"} = "-10-11";
+		$LCMStartOfSeasonDay = "October 11";
+	)
 	
 	
 	
