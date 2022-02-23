@@ -126,13 +126,12 @@ sub FixLCMSeasonRangeFor2021( $ ) {
 	if( $yearBeingProcessed eq "2021" ) {
 		$season{"LCMend"} = "-10-10";
 		$LCMEndOfSeasonDay = "October 10";
-	} elsif( yearBeingProcessed eq "2022" ) {
+	} elsif( $yearBeingProcessed eq "2022" ) {
 		$season{"LCMstart"} = "-10-11";
 		$LCMStartOfSeasonDay = "October 11";
-	)
-	
-	
-	
+	}
+#print "\nFixLCMSeasonRangeFor2021(): season end='" . $season{"LCMend"} . "', " .
+#	"season start='" . $season{"LCMstart"} . "', LCMStartOfSeasonDay='$LCMStartOfSeasonDay'\n";
 	
 } # end of FixLCMSeasonRangeFor2021()
 
