@@ -1594,11 +1594,14 @@ sub CanonicalOWCourse( $ ) {
 } # end of CanonicalOWCourse()
 
 
-sub GetFullFileNameFromPattern( $$$ ) {
-	my ($fileNamePattern, $parentDir, $fileType) = @_;
+sub GetFullFileNameFromPattern {
+	my ($fileNamePattern, $parentDir, $fileType, $dontPrintError) = @_;
+	if( !defined $dontPrintError ) {
+		$dontPrintError = 0;			# by default we print an error message if we can't find an RSIND file
+	}
 	my $swimmerDataFile = undef;
 	
-	if( ! defined( $fileNamePattern ) ) {
+	if( (! defined( $fileNamePattern ) ) && (! $dontPrintError) ) {
 		# no file name pattern - this is an ERROR!
 		PMSLogging::DumpError( "", 0, "A $fileType file name pattern wasn't found in the properties.txt file -" .
 			"we will assume that there is no new $fileType file to process, BUT FIX THIS!", 1 );
@@ -1607,7 +1610,7 @@ sub GetFullFileNameFromPattern( $$$ ) {
 		# We will use the most recent version of the file we can find in the $parentDir
 		# directory:
 		$swimmerDataFile = 	PMSUtil::GetMostRecentVersion( $fileNamePattern, $parentDir );
-		if( !defined $swimmerDataFile ) {
+		if( (!defined $swimmerDataFile) && (! $dontPrintError) ) {
 			# no file found matching the pattern - this is an ERROR!
 			PMSLogging::DumpError( "", 0, "A $fileType file wasn't found in\n" .
 				"    '$parentDir'\n" .

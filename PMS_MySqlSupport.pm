@@ -221,6 +221,7 @@ sub GetTableList {
 #	$qry - the query to prepare and execute
 #	$log - (optional) non-empty string means to log the query, "" (or undefined = default) means don't
 #			The value of $log is used as the title of the log entry, if any.
+#			If logged, it's logged as a Note.
 #
 # Return:
 #	$sth - statement handle
