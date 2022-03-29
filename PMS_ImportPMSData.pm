@@ -427,7 +427,15 @@ if(0) {
 sub InvalidRSIND( $ ) {
 	my $g_sheet1_ref = $_[0];
 	my $msg = "";
+	
+	# Here are the column headings we expect...
+	# We check this because occasionally we get an RSIND file with the columns in the
+	# wrong order and we don't want to get the data confused (e.g. last vs first name, 
+	# club initials where swimmerId belongs, etc.)
+	# UNFORTUNATELY: USMS seems to want to change the column headings occasionally, so 
+	# we're going to check multiple different sets of headings.
 	my @columnHeadings = (
+		[
 		"ClubAbbr",
 		"SwimmerID",
 		"FirstName",
@@ -443,17 +451,48 @@ sub InvalidRSIND( $ ) {
 		"RegDate",
 		"EMailAddress",
 		"RegNumber"
+		],
+		# added Mar, 2022:
+		[
+		"Club",
+		"Swimmer ID",
+		"First Name",
+		"MI",
+		"Last Name",
+		"Address",
+		"City",
+		"State",
+		"Zip",
+		"Country",
+		"Birth Date",
+		"Gender",
+		"Reg. Date",
+		"(P) Email Address",
+		"USMS Number"
+		]
 	);
-	
-	for( my $colNum = ord("A"); $colNum <= ord("O"); $colNum++ ) {
-		if( $g_sheet1_ref->{chr($colNum)."1"} ne $columnHeadings[$colNum-ord("A")] ) {
-			$msg = "'" . chr($colNum) . "' is '" . $g_sheet1_ref->{chr($colNum)."1"} .
-				"' but expected '" . $columnHeadings[$colNum-ord("A")] . "'";
+	my $numColumnHeadings = scalar @columnHeadings;
+	my $headingMismatch = 1;		# pretend the heading we're testing doesn't match (yet)
+	for( my $headingNum = 0; ($headingNum < $numColumnHeadings) && ($headingMismatch >= 0); $headingNum++ ) {
+		$headingMismatch = -1;		# assume the heading we're testing matches
+		my $colNum;
+		for( $colNum = ord("A"); $colNum <= ord("O") && ($headingMismatch < 0); $colNum++ ) {
+			if( $g_sheet1_ref->{chr($colNum)."1"} ne $columnHeadings[$headingNum][$colNum-ord("A")] ) {
+				# found a mis-match
+				$headingMismatch = $colNum;
+			}
 		}
+	}
+
+	if( $headingMismatch >= 0 ) {
+		# never found a heading that matched...
+		$msg = "After comparing the RSIND heading row (row 1) it was found that none of the " .
+			"$numColumnHeadings legal headings matched. For example, see column '" .
+			chr($headingMismatch) . "'";
 	}
 	
 	return $msg;
-		
+
 } # end of InvalidRSIND()
 
 
