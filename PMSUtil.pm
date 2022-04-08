@@ -417,7 +417,7 @@ print $trace->as_string; # like carp
 				# oops - this can't be right!  try again...
 				$year = $twoDigitYear + 1900;		# convert '83' to '1983', or '02' to '1902'
 				if( !$twoDigitYearSeen ) {
-					PMSLogging::DumpError( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
+					PMSLogging::DumpWarning( "", "", "PMSUtil::ConvertToISOPrimary(): invalid date ('$passedDate' - invalid year). " .
 						"Changing '$twoDigitYear' to '$year'.  This needs to be corrected (this message " .
 						"will not be repeated.)", "" );
 					$twoDigitYearSeen = 1;
