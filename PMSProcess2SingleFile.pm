@@ -400,7 +400,7 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
     # $rowRef->[5] - team - can be anything
     # $rowRef->[6] - age - must be non-empty and all digits
     # $rowRef->[7] - reg # - can be anything but must be non-empty
-    # $rowRef->[8] - DOB - can be anything 
+    # $rowRef->[8] - DOB - can be anything but needed if no age ([6]) supplied
     # $rowRef->[9] - time|distance - can be anything 
 
 	# Use the passed $rowRef (reference to an array of fields) to construct a single string, which is
@@ -427,17 +427,27 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
         $errors += PMSLogging::DumpRowError( $rowRef, $rowNum, "Undefined lastname - LINE IGNORED!" );
     } elsif( (!defined( $rowRef->[3] )) || (length( $rowRef->[3] ) == 0) ) {
         $errors += PMSLogging::DumpRowError( $rowRef, $rowNum, "Undefined firstname - LINE IGNORED!" );
-    } elsif( (!defined( $rowRef->[6] )) || (length( $rowRef->[6] ) == 0) ) {
-        $errors += PMSLogging::DumpRowError( $rowRef, $rowNum, "Undefined age - LINE IGNORED!" );
-    } elsif( $rowRef->[6] !~ m/^[0-9]+$/ ) {
-        $errors += PMSLogging::DumpRowError( $rowRef, $rowNum, "Non-numeric age ('$rowRef->[6]') - LINE IGNORED!" );
     } elsif( $PMSConstants::RegNumRequired && ((!defined( $rowRef->[7] )) || (length( $rowRef->[7] ) == 0)) ) {
         # Either regnum is required for all races being processed by this program, or it's not. If it is required it must be present and non-empty
         $errors += PMSLogging::DumpRowError( $rowRef, $rowNum, "Undefined Registration number - LINE IGNORED!" );
-    } elsif( PMSUtil::IsValidAge( $rowRef->[6], $resultsAgeGrp ) == $PMSConstants::INVALIDAGE ) {
+
+    } elsif( (!defined( $rowRef->[6] )) || (length( $rowRef->[6] ) == 0) ) {
+    	# compute their age using the supplied DOB (if supplied)
+    	my $dateOfBirth = $rowRef->[8];		# mm/dd/yyyy
+        PMSLogging::DumpRowWarning( $rowRef, $rowNum, "Undefined age - FIX THIS - Warning only..." .
+        	" We will try to compute their age from their Date Of Birth ($dateOfBirth)." );
+    	$dateOfBirth =~ s/\s*//g;		# remove all whitespace
+		my $dateOfBirthDef = PMSUtil::GenerateCanonicalDOB($dateOfBirth);		# yyyy-mm-dd
+		my $computedAge = PMSUtil::AgeAtEndOfYear( $dateOfBirthDef );
+		$rowRef->[6] = $computedAge;
+    } elsif( $rowRef->[6] !~ m/^[0-9]+$/ ) {
+        $errors += PMSLogging::DumpRowError( $rowRef, $rowNum, "Non-numeric age ('$rowRef->[6]') - LINE IGNORED!" );
+	}
+
+    if( !$errors && PMSUtil::IsValidAge( $rowRef->[6], $resultsAgeGrp ) == $PMSConstants::INVALIDAGE ) {
     	# we're going to log this as an error, but not really count it as an error.  If this is the only problem
     	# with this row we're going to give the swimmer their points, but the error needs to be fixed.
-        PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSProcess2SingleFile::ProcessResultRow(): " .
+        PMSLogging::DumpRowWarning( $rowRef, $rowNum, "PMSProcess2SingleFile::ProcessResultRow(): " .
         	"Invalid age ($rowRef->[6] is either not a legal age for this group of swimmers\n" .
         	"    or is not in the assigned age group [$resultsAgeGrp]) for this swimmer.  This swimmer will " .
         	"still get points\n    in the assigned age group WHICH MIGHT BE WRONG!\n    " );

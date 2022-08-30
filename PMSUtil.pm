@@ -305,8 +305,8 @@ sub ConvertDateToISO( $ ) {
 	my $day = $2;
 	my $year = $3;
 	# see if the passed date was already in ISO format:
-	if( length( $month ) == 4 ) {
-		# oops - bad assumption.  Swam the numbers around...
+	if( (defined $month ) && length( $month ) == 4 ) {
+		# oops - bad assumption.  Swap the numbers around...
 		my $tmp = $year;
 		$year = $month;
 		$month = $day;

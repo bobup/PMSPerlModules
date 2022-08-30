@@ -395,16 +395,24 @@ sub DumpMacros {
 #		Set to "" (or 0) if not known.
 #	$rowNum - the number of the $row in the result file.  Set to 0 (or "") if not known.
 #	$errStr - the WARNING to dump
+#	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
 # 
-sub DumpRowWarning( $$$ ) {
+sub DumpRowWarning {
     my $row = $_[0];
     my $rowNum = $_[1];
     my $errStr = $_[2];
+    my $console = $_[3];
+    my $numErrors = 0;
+    my $totalErr;
 	if( (($row eq "") || ($row eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
-        PMSLogging::printLog( "! WARNING: $errStr\n" );
-    } else {
-        PMSLogging::printLog( "! WARNING: $errStr: [row $rowNum, '@$row']\n" );
-    }
+		$totalErr = "! WARNING: $errStr\n";
+	} else {
+		$totalErr = "! WARNING: $errStr: [row $rowNum, '@$row']\n";
+	}
+    PMSLogging::printLog( $totalErr );
+	print $totalErr if( $console );
+    $numErrors = 1;
+    return $numErrors;
 } # end of DumpRowWarning
 
 
