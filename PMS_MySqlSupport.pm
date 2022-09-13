@@ -1956,7 +1956,7 @@ sub GetListOfRaces( $ ) {
 	my $pointsToGet = "Cat".$category."Points";
 
 	($sth, $rv) = PrepareAndExecute( $dbh,
-		"SELECT EventId, EventName, Date FROM Events " .
+		"SELECT EventId, EventName, Date, EventFullPath FROM Events " .
 		"WHERE Category = $category " .
 		"ORDER BY EventId ASC", "");
 	return $sth;

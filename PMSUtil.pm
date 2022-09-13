@@ -10,6 +10,7 @@ use strict;
 require PMSLogging;
 require PMSConstants;
 require Devel::StackTrace;
+use DateTime;
 
 
 
@@ -290,7 +291,8 @@ sub GenerateCanonicalDOB($) {
 #		a string of the form yyyy/mm/dd (which is already ISO format)
 #
 # RETURNED:
-#	a date in the form yyyy-mm-dd
+#	a date in the form yyyy-mm-dd. The month and day fields are guaranteed to be 2 digits (leading
+#	zero if necessary)
 #
 # NOTES:
 #	- if we are passed '-' instead of '/' then deal with it.
@@ -310,7 +312,9 @@ sub ConvertDateToISO( $ ) {
 		my $tmp = $year;
 		$year = $month;
 		$month = $day;
+		$month = "0$month" if($month < 10);
 		$day = $tmp;
+		$day = "0$day" if( $day < 10 );
 		$isoDate = "$year-$month-$day";
 	} else {
 		# make sure the passed date is the correct format.  If not we'll us a default.
@@ -447,6 +451,83 @@ print $trace->as_string; # like carp
 
 	return "$year-$month-$day";
 } # end of ConvertToISOPrimary()
+
+
+
+# convert iso date into more human friendly string
+#
+# PASSED:
+#	$date - a legal ISO date in the form 'yyyy-mm-dd', where 'yyyy' is 4 digits and 'mm' and 'dd'
+#		are each 2 digits.
+#
+# RETURNED:
+#	$dateStr - a string of the form "Saturday, September 3, 2047"
+#
+#
+sub ISOtoFriendlyDateString( $ ) {
+	my $date = $_[0];
+	my $dateStr;
+	
+	$date =~ m/^(....).(..).(..)$/;
+	my $year = $1;
+	my $month = $2;
+	my $day = $3;
+	my $dt = DateTime->new(
+		year		=> $year,
+		month		=> $month,
+		day			=> $day,
+	);
+	$dateStr = $dt->strftime( '%A, %B %e, %Y' );
+	return $dateStr;
+	
+} # end of ISOtoFriendlyDateString()
+
+
+# compare the difference between two ISO dates
+#
+# PASSED:
+#	$date1 - the first date
+#	$date2 - the second date
+#
+# RETURNED:
+#	$difference - the number of days between the two dates, computed by:
+#			$date2 - $date1
+#		and rounded down to and intergal number of days. Note that this number
+#		can be zero or negative.
+#
+# NOTES:
+#	a legal ISO date is in the form 'yyyy-mm-dd', where 'yyyy' is 4 digits and 'mm' and 'dd'
+#		are 1 or 2 digits. The separator '-' can be either '-' or '/'.
+#
+sub ISOCompareDates( $$ ) {
+	my ($date1, $date2) = @_;
+	
+	$date1 =~ m/^(....)[\/-](.+)[\/-](.+)$/;
+	my $year = $1;
+	my $month = $2;
+	my $day = $3;
+	my $dateTime1 = DateTime->new (
+		year		=> $year,
+		month		=> $month,
+		day			=> $day,
+	);
+
+	$date2 =~ m/^(....)[\/-](.+)[\/-](.+)$/;
+	$year = $1;
+	$month = $2;
+	$day = $3;
+	my $dateTime2 = DateTime->new (
+		year		=> $year,
+		month		=> $month,
+		day			=> $day,
+	);
+
+	my $diffInSeconds = $dateTime2->epoch - $dateTime1->epoch;
+	my $numDays = int( $diffInSeconds / (60*60*24) );
+	
+	return $numDays;
+
+} # end of ISOCompareDates()
 
 
 

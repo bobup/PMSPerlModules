@@ -316,8 +316,42 @@ sub ProcessCalendarPropertyLine($$) {
         	"with the date of $date, but we are supposed to be processing data in the year of " .
         	"'$yearBeingProcessed'.\n";
 	}
-	
+		
 } # end of ProcessCalendarPropertyLine()
+
+
+#
+#				PMSMacros::InsertNoResultEvent( $raceOrder );
+#
+# InsertNoResultEvent - invoked when processing the Calendar macro in the properties.txt file.
+#	Invoked when a calendar entry defines an OW event that doesn't have any results (e.g.
+#	we didn't get results yet or the event hasn't been held yet.)
+#
+# PASSED:
+#	$raceOrder - the order of this event in the calendar of events.
+#
+# RETURNED:
+#	n/a
+#
+# NOTES:
+#	This routine will record the event into our database indicating that we don't have results
+#	yet (no splashes, no file type)
+#
+sub InsertNoResultEvent( $ ) {
+	my $raceOrder = $_[0];
+	my $eventName = $calendar{"$raceOrder-EventName"};
+	my $fileName = $calendar{"$raceOrder-FileName"};
+	my $cat = $calendar{"$raceOrder-CAT"};
+	my $date = $calendar{"$raceOrder-Date"};
+	my $distance = $calendar{"$raceOrder-Distance"};
+	my $uniqueID = $calendar{"$raceOrder-UniqueID"};
+				
+	PMS_MySqlSupport::InitialRecordThisEvent( $eventName, $fileName, $fileName, "", $cat,
+		$date, $distance, $uniqueID, -1, -1 );
+
+} # end of InsertNoResultEvent()
+
+
 
 
 
