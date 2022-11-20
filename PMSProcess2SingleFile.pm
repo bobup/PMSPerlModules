@@ -367,7 +367,7 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
         $category, $numSwims, $eventId, $genAgegrp, $newGender, $newAgeGrp ) = @_;
     my $errors = 0;
     
-    my $debugLastName = "xxxzzz";
+    my $debugLastName = "xxxxzzzzzz";
     
     # does this row have its own value for a gender:age group?
     if( $genAgegrp != 3 ) {
@@ -456,7 +456,10 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
 	my $temp_avoid_warning = $PMSConstants::INVALIDAGE;		# my compiler is stupid...
 	$temp_avoid_warning = $PMSConstants::RegNumRequired;		# my compiler is stupid...
 
-    PMSLogging::printLog( "ProcessResultRow: row passed: '$rowAsString'\n" ) if( $rowRef->[2] =~ m/$debugLastName/i );
+	if( $rowRef->[2] =~ m/$debugLastName/i ) {
+    	PMSLogging::printLog( "ProcessResultRow: row passed: '$rowAsString'\n" ) ;
+    	PMSLogging::printLog( "ProcessResultRow: Call StoreResult with rowNum='$rowNum'\n" ) ;
+	}
 
     if( $errors == 0 ) {
 	    PMSStoreSingleRow::StoreResult( $rowRef, $rowNum, $numSwims, $category, 
