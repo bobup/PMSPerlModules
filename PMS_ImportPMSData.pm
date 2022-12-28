@@ -97,6 +97,10 @@ sub ReadPMS_RSIDNData( $$ ) {
 		print "  (We found no data in the $tableName table)\n" if( $debug > 0 );
 		$refreshRSIDNFile = 1;
 	}
+
+# force reading rsind file:
+#$refreshRSIDNFile = 1;
+
 	
 	if( $refreshRSIDNFile ) {
 		# We've decided to read the spreadsheet because our RSIDN table is either empty or 
@@ -238,12 +242,14 @@ sub GetRSINDRow( $$$$$ ) {
 		$rowRef->{'club'} = uc($rowRef->{'club'});
 	}	
 	$rowRef->{'swimmerId'} = PMSUtil::GenerateCanonicalUSMSSwimmerId( $g_sheet1_ref->{"B$rowNum"} );
-	$rowRef->{'first'} = $g_sheet1_ref->{"C$rowNum"};
+	$rowRef->{'first'} = PMSUtil::trim( $g_sheet1_ref->{"C$rowNum"} );
 	$rowRef->{'middle'} = $g_sheet1_ref->{"D$rowNum"};
 	if( !defined( $rowRef->{'middle'} ) ) {
 		$rowRef->{'middle'} = "";
+	} else {
+		$rowRef->{'middle'} = PMSUtil::trim( $rowRef->{'middle'} );
 	}
-	$rowRef->{'last'} = $g_sheet1_ref->{"E$rowNum"};
+	$rowRef->{'last'} = PMSUtil::trim( $g_sheet1_ref->{"E$rowNum"} );
 	$rowRef->{'address1'} = $g_sheet1_ref->{"F$rowNum"};
 	$rowRef->{'city'} = $g_sheet1_ref->{"G$rowNum"};
 	$rowRef->{'state'} = $g_sheet1_ref->{"H$rowNum"};
