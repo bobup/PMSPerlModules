@@ -400,7 +400,7 @@ sub DBIErrorHandler( $$$ ) {
 #	$fullName - the full name, or "" if unknown (i.e. $abbr isn't a valid PMS team)
 #
 sub GetFullTeamName( $ ) {
-	my $abbr = $_[0];
+	my $abbr = MySqlEscape( $_[0] );
 	my $fullName = "";
 	my $dbh = GetMySqlHandle();
 
@@ -1576,7 +1576,7 @@ sub AddSwim( $$$$$$$ ) {
 	
 	(my $sth, my $rv) = PrepareAndExecute( $dbh, 
 		"INSERT INTO Swim " .
-			"(EventId, SwimmerId, Duration, RecordedPlace, ComputedPlace, Age, AgeGroup, Row, RowNum) " .
+			"(EventId, SwimmerId, Duration, RecordedPlace, ComputedPlace, Age, AgeGroup, RowString, RowNum) " .
 			"VALUES (\"$eventId\", \"$swimmerId\", \"$timeAsInt\", \"$recordedPlace\", \"$place\", " .
 			"'0', '0', '$rowAsString', '$rowNum' )") ;
 
@@ -1584,6 +1584,7 @@ sub AddSwim( $$$$$$$ ) {
 
 
 # NOTE: used for OW only
+# returned distance is yards
 sub DistanceForThisEvent( $$$ ) {
 	my ($eventId,$rowRef, $rowNum) = @_;
 	my $distance;
@@ -1648,6 +1649,10 @@ sub InitialRecordThisEvent( $$$$$$$$$$ ) {
 	my $eventId = 0;
 	my $dbh = GetMySqlHandle();
 
+	# protect our MySql query args...
+	$eventName = MySqlEscape( $eventName );
+	$eventSimpleFileName = MySqlEscape( $eventSimpleFileName );
+	
 	($sth, $rv) = PrepareAndExecute( $dbh,
 		"SELECT EventId FROM Events where EventName = '$eventName' AND " .
 			"EventSimpleFileName = '$eventSimpleFileName' AND " .

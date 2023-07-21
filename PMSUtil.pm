@@ -11,6 +11,8 @@ require PMSLogging;
 require PMSConstants;
 require Devel::StackTrace;
 use DateTime;
+use MIME::Base64;
+
 
 
 
@@ -32,7 +34,7 @@ sub trim($) {
 # PASSED:
 #	$passedDuration - the duration in text form, e.g. 1:03:33.09 (1 hour, 3 minutes, 33 seconds, 9 hundredths
 #		of a second)
-#	$passedDistance - the distance of the event that this duration is used for, in meters/yards, or 0.
+#	$passedDistance - the distance of the event that this duration is used for, in yards, or 0.
 #		If 0 then it, and the logic involved, is ignored.
 #		We use this to get an idea of a "valid duration"
 #		so we can do some error detection and error correction.  For example, if the event is a 1 mile
@@ -131,6 +133,8 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 	}
 	my $strReturnedDuration = GenerateDurationStringFromHundredths( $returnedDuration ) .
 		" ($returnedDuration)";
+	my $strReturnedDurationOnly = GenerateDurationStringFromHundredths( $returnedDuration );
+	my $strPassedDistanceYdsAndMiles = "$passedDistance yards (~" . $passedDistance/1760 . " miles)";
 	
 	if( $passedDistance > 0 ) {
 		# now check to see if this duration makes sense
@@ -155,10 +159,16 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 		if( $returnedDuration < $minDuration ) {
 			my $updatedReturnedDuration = $returnedDuration + 60*60*100;		# add an hour
 			my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
-			PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
-				"duration $strReturnedDuration is much too FAST!\n      (expected a time of at least $strMinDuration), " .
-				"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
-				"($strUpdatedReturnedDuration)$extraMsg", 1 );
+			PMSLogging::DumpFatalRowError( $rowRef, $rowNum, "The supplied time for this event is way too FAST! " .
+				"The time of '$strReturnedDurationOnly' isn't consistent with a swim distance of " .
+				"$strPassedDistanceYdsAndMiles.  Please use the correct format for expressing the time " .
+				"of a swim.  The time of the swim must be in the form HH:MM:SS.th, where the \"HH\": is optional, " .
+				"as is the \".th\".  Note that the decimal point is required to seperate the tenths (instead of a " .
+				"colon) to avoid ambiguity in some cases.\n" .
+				"  PMSUtil::GenerateCanonicalDurationForDB_v2().\n" .
+				"  In order to continue processing this file, the time of this swim was temporarily changed to " .
+				"$updatedReturnedDuration ($strUpdatedReturnedDuration)$extraMsg ", 1 );
+				
 			$returnedDuration = $updatedReturnedDuration;
 			$weChangedReturnedDuration = 1;
 		} elsif( $returnedDuration > $maxDuration ) {
@@ -166,14 +176,20 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 				PMSLogging::DumpRowWarning( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
 					"duration $strReturnedDuration is pretty slow but we're going to go with it.\n" .
 					"      (expected a time of no more than $strMaxDuration) " .
-					"distance of swim='$passedDistance'\n       $extraMsg" );
+					"distance of swim='$strPassedDistanceYdsAndMiles'\n       $extraMsg" );
 			} else {
 				my $updatedReturnedDuration = $hr*60*100 + $min*100 + $sec;		# hr becomes minutes, minutes become seconds, etc...
 				my $strUpdatedReturnedDuration = GenerateDurationStringFromHundredths( $updatedReturnedDuration );
-				PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
-					"duration $strReturnedDuration is much too SLOW!\n      (expected a time of no more than $strSuperMaxDuration) " .
-					"distance of swim='$passedDistance'\n      CHANGED TO $updatedReturnedDuration " .
-					"($strUpdatedReturnedDuration)$extraMsg", 1 );
+				PMSLogging::DumpFatalRowError( $rowRef, $rowNum, "The supplied time for this event is way too SLOW! " .
+					"The time of '$strReturnedDurationOnly' isn't consistent with a swim distance of " .
+					"$strPassedDistanceYdsAndMiles.  Please use the correct format for expressing the time " .
+					"of a swim.  The time of the swim must be in the form HH:MM:SS.th, where the \"HH\": is optional, " .
+					"as is the \".th\".  Note that the decimal point is required to seperate the tenths (instead of a " .
+					"colon) to avoid ambiguity in some cases.\n" .
+					"  PMSUtil::GenerateCanonicalDurationForDB_v2().\n" .
+					"  In order to continue processing this file, the time of this swim was temporarily changed to " .
+					"$updatedReturnedDuration ($strUpdatedReturnedDuration)$extraMsg ", 1 );
+					
 				$returnedDuration = $updatedReturnedDuration;
 				$weChangedReturnedDuration = 1;
 			}
@@ -185,7 +201,7 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 				PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
 					"duration is much too FAST! AGAIN!\n      (expected a time of at least $strMinDuration) " .
 					"  Duration=$strReturnedDuration, " .
-					"distance of swim='$passedDistance'$extraMsg", 1 );
+					"distance of swim='$strPassedDistanceYdsAndMiles'$extraMsg", 1 );
 			} elsif( $returnedDuration > $maxDuration ) {
 				PMSLogging::DumpRowError( $rowRef, $rowNum, "PMSUtil::GenerateCanonicalDurationForDB_v2():computed " .
 					"duration is much too SLOW! AGAIN!\n      (expected a time of no more than $strMaxDuration) " .
@@ -860,8 +876,8 @@ sub GetEventDetail( $$$ ) {
 		if( !defined( $match ) ) {
 			# didn't find the right key - this is a problem!
 			PMSLogging::DumpError( 0, 0, "PMSUtil::GetEventDetail(): " .
-				"Unable to find the calendar key for the simple file name: '$simpleFileName'.  " .
-				"Tried " . ($raceOrder-1) . "different matches.", 1 );
+				"Unable to find the calendar detail '$detail' for the simple file name: '$simpleFileName'.  " .
+				"Tried " . ($raceOrder-1) . " different matches.", 1 );
 			last;
 		}
 		if( $simpleFileName eq $match ) {
@@ -1756,6 +1772,70 @@ sub GetStackTrace {
 sub PrintStack {
 	print GetStackTrace();
 } # end of PrintStack()
+
+
+#
+# GenerateUniqueID2 - generate a unique id used in the HTML id of a <div> which is unique
+#		to a specific swimmer. Used in OW points and OW Challenge.
+#
+# PASSED:
+#	gender - "W" or "M".  If "F" passed it will be converted to "W". Whatever is passed will
+#		be folded to upper case.
+#	yob - year of birth. Always 4 digits.
+#	category - the suit category, if relavent. If not relavent supply 1.
+#	regNum - in the form xxxx-yyyyy where xxxx-yyyyy is a USMS reg number, 
+#		HOWEVER, a single swimmerId is allowed where a reg number is expected.
+#		For example, "123R-45670" and "49934" are both legal
+#		Just in case there are letters it will be folded to upper case.
+#
+# RETURNED:
+#	A string which can be used as an ID attribute of an HTML element.
+# 
+sub GenerateUniqueID2( $$$$ ) {
+	my( $gender, $yob, $category, $regNum ) = @_;
+	my $swimmerId = $regNum;
+	my $uniqueId = "";
+
+	my $debugSwimmerId = "xxxxxx";
+	
+	$gender = uc $gender;
+	if( $gender eq "F" ) {
+		$gender = "W";
+	}
+	
+	# just use the swimmer id:
+	$swimmerId =~ s/^.*-//;
+	$swimmerId = uc $swimmerId;
+	my $desiredCryptLen = length( $swimmerId );
+	
+	my @arrOfId = split(//, $swimmerId );					# e.g. ("0", "1", "2", "3", "4") 
+	my @arrKey = ($gender, split(//, $yob), $category);		# e/g/ ("M", "1", "9", "9", "2", "1") 
+#print "desiredCryptLen=$desiredCryptLen, arrKey: '@arrKey' ... ";
+	if( scalar( @arrKey ) > $desiredCryptLen ) {
+		for( my $i = $desiredCryptLen; $i < scalar( @arrKey ); $i++ ) {
+			$arrOfId[$i] = chr( ord('A') + $i);
+		}
+		$desiredCryptLen = length( $swimmerId );
+	}
+	my @arrCrypt = ();
+	for( my $i = 0; $i < scalar @arrOfId; $i++ ) {
+		$arrCrypt[$i] = ord($arrOfId[$i]) + ord($arrKey[$i]);
+	}
+	my $cryptStr = join( ":", @arrCrypt );
+	$uniqueId = encode_base64( $cryptStr, "" );	# Upper and lower letters, digits, +, /
+	# remove trailing '='s if they exist (just to confuse the reader...)
+	$uniqueId =~ s/=*$//;
+	
+	
+#print "arrOfId: '@arrOfId', arrKey: '@arrKey', arrCrypt: '@arrCrypt', uniqueId: '$uniqueId'\n";
+	
+	return $uniqueId;
+	
+} # end of GenerateUniqueID2()
+
+
+
+
 
 
 1;  # end of module

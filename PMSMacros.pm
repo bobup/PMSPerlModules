@@ -19,6 +19,24 @@ use warnings;
 my %calendar;						# $calendar['1-Date'] = date of event whose race order is 1.
 									# See ProcessCalendarPropertyLine() for more info.
 
+my @categories;						# $categories[n] = %catHash()
+# Note that @categories will start with index 1 (not 0 - that element is not used.)
+# Each element of the above array is a "%catHash", which looks like this:
+#	$catHash{"name"} - the name of a category, e.g. "Trout" or "Whale"
+#	$catHash{"minCount"} - the minimum number of swims a swimmer must swim to be in this
+#		category. For example, a "Trout" may be 5, and a Whale may be 100.
+#	$catHash{"maxCount"} - the maximum number of swims a swimmer must swim to be in this 
+#		category. Any more swims and they are moved into the next category.
+#	$catHash{year-swimmers} - number of swimmers in this category cumulative from the start year
+#		up to and including this 'year'.  For example, if 
+#			- the starting year is 2018 and
+#			- $categories[1]{2018-swimmers} is 85
+#				in 2019 11 category[1] swimmers advanced to category[2]
+#				in 2019 5 swimmers advanced to category[1]
+#			- $categories[1]{2019-swimmers} is 79 (85 - 11 + 5)
+	
+
+
 my $templateName = "";				# Global varialbe used to hold the name of the template file being processed
 
 sub SetTemplateName( $ ) {
@@ -78,6 +96,7 @@ sub GetProperties( $$$ ) {
 	SetTemplateName( $propFileName );
 	my $lineNum = 0;
 	my $processingCalendar = 0;		# set to 1 when processing a ">calendar....>endcalendar" block
+	my $processingCategories = 0;	# set to 1 when processing a ">categories...>endcategories" block
 	open( $propFileFD, "< $propFileName" ) || die( "Can't open $propFileName: $!" );
 	while( my $line = <$propFileFD> ) {
 		my $value = "";
@@ -109,7 +128,7 @@ sub GetProperties( $$$ ) {
 #print "GetProperties(): [$propFileName]: line='$line'\n";
 		my $macroName = $line;
 		$macroName =~ s/\s.*$//;	# remove all chars from first space char until eol
-		if( ($macroName =~ m/^>/) || $processingCalendar ) {
+		if( ($macroName =~ m/^>/) || $processingCalendar || $processingCategories ) {
 			# found a non macro definition (synonym, etc of the form ">....")
 			$macroName = lc( $macroName );
 			if( $macroName eq ">calendar" ) {
@@ -120,6 +139,16 @@ sub GetProperties( $$$ ) {
 				next;
 			} elsif( $processingCalendar ) {
 				ProcessCalendarPropertyLine($line, $yearBeingProcessed);
+				next;
+			} elsif( $macroName eq ">categories" ) {
+				$processingCategories = 1;
+				next;
+			} elsif( $macroName eq ">endcategories" ) {
+				$processingCategories = 0;
+				next;
+			} elsif( $processingCategories ) {
+#print "GetProperties(): got a category\n";
+				ProcessCategoriesLine( $line );
 				next;
 			} elsif( $macroName eq ">include" ) {
 				$line = ProcessMacros( $line, $lineNum );		# allow include path to contain other macros
@@ -385,6 +414,43 @@ sub GetCalendarRef() {
 
 
 
+# 				ProcessCategoriesLine( $line );
+# ProcessCategoriesLine - process a line found between a >categories and >endcategories line
+#
+# PASSED:
+#	$line - the line to process. Of the form:
+#		Trout		->		5
+#
+# RETURNED:
+#	n/a
+#
+my $categoryOrder = 0;
+sub ProcessCategoriesLine( $ ) {
+	my $line = $_[0];
+	my ($name, $count) = split( /\s*->\s*/, $line );
+	$categoryOrder++;
+	my %catHash = (
+		'name'	=> $name,
+		'minCount'	=>	$count
+		# we compute maxCount later
+	);
+	$categories[$categoryOrder] = \%catHash;
+	
+#	print "ProcessCategoriesLine: name=$name, count=$count\n";
+} # end of ProcessCategoriesLine()
+
+
+sub GetCategoryArrayRef {
+	return \@categories;
+}
+
+
+
+
+
+
+
+
 # ProcessMacros - process all template macros in the passed line, if any.
 #
 # PASSED:
@@ -467,7 +533,10 @@ sub ValidateCalendar() {
 			"Category = '$category'" );
 		if( defined(my $resultHash = $sth2->fetchrow_hashref) ) {
 			# we have this UniqueEventID in our Event History - does it look like what we expect?
-			if( $eventName ne $resultHash->{'EventName'} ) {
+			#if( $eventName ne $resultHash->{'EventName'} ) {
+			# 25jun2023: check to see if the event name in the database is the same as
+			# same as the BEGINING of the event name in the calendar.
+			if( index( $eventName, $resultHash->{'EventName'} ) != 0 ) {
 	        	PMSLogging::DumpError( "", "", "PMSMacros::ValidateCalendar(): Found an event " .
 	        		"in the EventHistory with UniqueEventID='$eventUniqueID' but the name of the event in " .
 	        		"the EventHistory is '" . $resultHash->{'EventName'} . "' which doesn't match the " .

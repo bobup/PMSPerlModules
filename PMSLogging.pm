@@ -166,6 +166,34 @@ sub DumpError {
 } # end of DumpError
 
 
+#
+# DumpFatalError - dump a FATAL ERROR to the log file, and optionally to the console
+#
+# SYNOPSIS:
+#	DumpFatalError( $line, $lineNum, "error str", 1 );
+#
+# PASSED:
+#	$line - the result line from a result file being processed when this ERROR is dumped.
+#		Set to "" (or 0) if not known.
+#	$lineNum - the number of the $line in the result file.  Set to 0 (or "") if not known.
+#	$errStr - the ERROR to dump
+#	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
+#
+# NOTES:
+#	Most errors are fatal, but we have some errors that we know are fatal and also need 
+#	a more user friendly error message. For those errors use this routine.
+# 
+sub DumpFatalError {
+	if( defined fileno( LOG ) ) {
+	    my ( $line, $lineNum, $errStr, $console ) = @_;
+	    PrintLog( $line, $lineNum, "! FATAL ERROR: $errStr\n! END FATAL ERROR", $console );	    
+		$numErrorsLogged++;
+	}
+} # end of DumpFatalError
+
+
+
+
 
 #
 # DumpWarning - dump a WARNING to the log file, and optionally to the console
@@ -455,6 +483,51 @@ sub DumpRowError {
     return $numErrors;
 
 } # end of DumpRowError
+
+
+# DumpFatalRowError - dump an FATAL ERROR message pertaining to the row of results being processed
+#
+# PASSED:
+#   $row - a reference to the row with the warning (an array of fields)
+#		Set to "" (or 0) if not known.
+#	$rowNum - the number of the $row in the result file.  Set to 0 (or "") if not known.
+#   $errStr - the error message
+#	$console - (optional) dump to the console, too, if TRUE.  Default to FALSE.
+#
+# NOTES:
+#	Most errors are fatal, but we have some errors that we know are fatal and also need 
+#	a more user friendly error message. For those errors use this routine.
+# 
+
+sub DumpFatalRowError {
+    my $rowRef = $_[0];
+    my $rowNum = $_[1];
+    my $errStr = $_[2];
+    my $console = $_[3];
+    my $rowAsString = "?";
+    my $totalErr;
+    my $numErrors = 0;
+	if( (($rowRef eq "") || ($rowRef eq "0")) && (($rowNum eq "") || ($rowNum eq "0")) ) {
+        $totalErr = "! FATAL ERROR: $errStr\n";
+	} else {
+		if( ($rowRef eq "") || ($rowRef eq "0") ) {
+			$rowAsString = "?";
+		} else {
+        	($rowAsString, my $numNonEmptyFields) = PMSUtil::CleanAndConvertRowIntoString( $rowRef );
+		}
+		if( ($rowNum eq "") || ($rowNum eq "0") ) {
+			$rowNum = "?";
+		}
+        $totalErr = "! FATAL ERROR on row $rowNum: $errStr \n  [row $rowNum, '$rowAsString']\n! END FATAL ERROR";
+    }
+    PrintLog( "", "", $totalErr, $console );
+    $numErrors = 1;
+    $numErrorsLogged++;
+    
+    return $numErrors;
+
+} # end of DumpFatalRowError
+
 
 
 
