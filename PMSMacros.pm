@@ -365,6 +365,7 @@ sub ProcessCalendarPropertyLine($$) {
 # NOTES:
 #	This routine will record the event into our database indicating that we don't have results
 #	yet (no splashes, no file type)
+#	This routine is used for both sanctioned events with no results and for unsanctioned events.
 #
 sub InsertNoResultEvent( $ ) {
 	my $raceOrder = $_[0];
@@ -379,6 +380,7 @@ sub InsertNoResultEvent( $ ) {
 		$date, $distance, $uniqueID, -1, -1 );
 
 } # end of InsertNoResultEvent()
+
 
 
 

@@ -137,6 +137,7 @@ sub FixLCMSeasonRangeFor2021( $ ) {
 
 # see the properties.txt file to see how the following is used:
 our $NoResultsPath = "NO RESULTS";
+our $NoSanctionYet = "NO SANCTION";
 
 
 1;  # end of module
