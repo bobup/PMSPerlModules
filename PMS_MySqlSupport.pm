@@ -300,7 +300,6 @@ sub PrepareAndExecute {
 			# got an error - try to recover
 			$weRetried++;
 			PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retrying #$weRetried...)", 1);
-			PMSUtil::PrintStack();
 			if( $sth ) {
 				# we're done with this statement handle, too.  We'll get another when we loop and try again
 				$sth->finish;
@@ -312,6 +311,9 @@ sub PrepareAndExecute {
 	if( $status ) {
 		# got an error - failed to recover
 		PMSLogging::DumpError( "", "", "PMS_MySqlSupport::PrepareAndExecute(): $status (retry FAILED!)", 1);
+		PMSLogging::DumpError( "", "", "PMS_MySqlSupport::PrepareAndExecute(): Stack trace:\n" .
+			PMSUtil::GetStackTrace() );
+			
 	} elsif( $weRetried ) {
 		PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::PrepareAndExecute(): We retried $weRetried " .
 			"times and it finally worked.", 1);
@@ -448,6 +450,7 @@ sub GetFullTeamName( $ ) {
 ##	$eventId
 ##	$recordedPlace - the place they got in the passed race according to the event results
 ##		(May be changed later if non-PMS swimmers finished ahead of this person)
+##	$rowNum - the row number of the file being processed. Used in messages.
 ##
 ## Returned:
 ##	$resultSwimmerId - Id of passed swimmer entered (or previously entered) in the DB.  0 if error
@@ -459,10 +462,10 @@ sub GetFullTeamName( $ ) {
 #
 # todo: add team to db (may not be official) - are we doing this already?
 #
-sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
+sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 	(my $dateOfBirth, my $regNum, my $firstName, my $middleInitial, my $lastName,
 		my $gender, my $age, my $ageGrp, my $genAgeGrpRace, my $raceFileName, 
-		my $team, my $eventId, my $recordedPlace ) = @_;
+		my $team, my $eventId, my $recordedPlace, my $rowNum ) = @_;
 	my $swimmerRegNum = 0;		# RegNumId of this swimmer in the swimmer table
 	my $sth, my $rv;
 	my $resultHash;
@@ -481,7 +484,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 	my $yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
 
 	# debugging...look for specific first/last name to log lots of details
-	my $debugLastName = 'Nuñez-Zeped';
+	my $debugLastName = 'xxxxxx';
 	
 	if( (lc($lastName) eq lc($debugLastName)) ) {
 		print "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): got '$firstName' '$middleInitial' '$lastName'\n";
@@ -513,9 +516,10 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 		# Is there more than one row that matches our query?  If so that's weird
 		while( defined($resultHash) ) {
 			if( ++$found > 1 ) {
-				print "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): Found multiple rows for swimmer " .
+				PMSLogging::DumpWarning( "", "", " on row $rowNum: PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): " .
+					"Found multiple rows for swimmer " .
 					"firstname='$firstName', middleInitial='$middleInitial', lastName='$lastName', regNum='$regNum, " .
-					"swimmerId='" . $resultHash->{'SwimmerId'} . "'";
+					"swimmerId='" . $resultHash->{'SwimmerId'} . "'", 1 );
 			}
 			# this swimmer is already in our DB with a regnum - this means that this swimmer
 			# is a valid PMS swimmer and we have everything we need to know in our db
@@ -529,24 +533,26 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 			# the swimmer is their age on December 31 of this year.
 			my $computedAge = PMSUtil::AgeAtEndOfYear( $dob );
 			if( ($yearBeingProcessed >= $PMSConstants::YEAR_RULE_CHANGE) && ($computedAge != $age) ) {
-				# The entered age is not correct.  We'll report this ONCE as a warning if it doesn't 
-				# really matter (i.e. the swimmer's age group doesn't change), but we'll generate an
-				# ERROR for every one we find where the age group is wrong.
+				# The entered age is not correct.  We'll "should" report this ONCE as a warning if it doesn't 
+				# really matter (i.e. the swimmer's age group doesn't change), but we're making it an error anyway
+				# because the entry of this swimmer is wrong!
 				if( PMSUtil::DifferentAgeGroups( $computedAge, $age ) ) {
 					# ages are different age groups (or invalid...!!?!?!?!)
-					PMSLogging::DumpError( "", "", "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): invalid age[#1] " .
+					PMSLogging::DumpError( $raceFileName, $rowNum, "Invalid age[#1] " .
 						"(AND AGE GROUP!) for " .
-						"'$firstName $lastName' in file\n    $raceFileName." .
-						"The 'dob='$dob', entry age='$age', but computed age based on dob='$computedAge'.\n" .
-						"    This swimmer will still get their points, BUT IT MIGHT BE IN THE WRONG AGE GROUP!", 1);
+						"'$firstName $lastName'.\n" .
+						"    The 'dob='$dob', entry age='$age', but computed age based on dob='$computedAge'.\n" .
+						"    This swimmer will still get their points, BUT IT MIGHT BE IN THE WRONG AGE GROUP!\n" .
+						"    {PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 1);
 				} else {
-					# this error doesn't affect the swimmer's age group - report it only once as a warning:
+					# this error doesn't affect the swimmer's age group - but report it as an error anyway!:
 					if( ($SwimmerAgeWarningAlreadyReported == 0) || 1 ) {
 						$SwimmerAgeWarningAlreadyReported = 1;
-						PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): " .
-						"[not REPORTED ONLY ONCE]: invalid age[#1] for " .
-							"'$firstName $lastName' in file $raceFileName.\n  " .
-							"The 'dob='$dob', entry age='$age', but computed age based on dob='$computedAge'.", 0);
+						PMSLogging::DumpError( $raceFileName, $rowNum, 
+							"Invalid age[#1] for " .
+							"'$firstName $lastName'.\n  " .
+							"    The 'dob='$dob', entry age='$age', but computed age based on dob='$computedAge'.\n" .
+							"    {PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 0);
 					}
 				}
 				# we will ignore this error and keep going...what else can we do?
@@ -595,7 +601,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 			# This swimmer is not known in RSIDN
 			if( (lc($lastName) eq lc($debugLastName)) ) {
 				print "...swimmer not found in RSIDN_$yearBeingProcessed, corrected name: " .
-					"'$correctedFirstName' '$middleInitial' $correctedLastName'.\n";
+					"'$correctedFirstName' '$middleInitial' '$correctedLastName'.\n";
 			}
 
 			$isPMS = 0;
@@ -619,29 +625,32 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$ ) {
 			$isPMS = 1;
 			# Check for age error:  as of 2017 the age of the swimmer is their age on December 31 of this year.
 			my $computedAge = PMSUtil::AgeAtEndOfYear( $correctedDOB );
-			
-			
+			if( (lc($lastName) eq lc($debugLastName)) ) {
+				print "...swimmers entered age: '$age', computed age: '$computedAge'\n";
+			}			
 			
 			if( ($yearBeingProcessed >= $PMSConstants::YEAR_RULE_CHANGE) && ($computedAge != $age) ) {
 				# The entered age is not correct.  We'll report this ONCE as a warning if it doesn't 
 				# really matter (i.e. the swimmer's age group doesn't change), but we'll generate an
-				# ERROR for every one we find where the age group is wrong.
+				# ERROR anyway!
 				if( PMSUtil::DifferentAgeGroups( $computedAge, $age ) ) {
 					# ages are different age groups (or invalid...!!?!?!?!)
-					PMSLogging::DumpError( "", "", "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): invalid age[#2] " .
+					PMSLogging::DumpError( $raceFileName, $rowNum, "Invalid age[#2] " .
 						"(AND AGE GROUP!) for " .
-						"'$firstName $lastName' in file\n    $raceFileName." .
-						"The 'dob='$correctedDOB', entry age='$age', but computed age based on dob='$computedAge'.\n" .
-						"    This swimmer will still get their points, BUT IT MIGHT BE IN THE WRONG AGE GROUP!", 1);
+						"'$firstName $lastName'." .
+						"    The 'dob='$correctedDOB', entry age='$age', but computed age based on dob='$computedAge'.\n" .
+						"    This swimmer will still get their points, BUT IT MIGHT BE IN THE WRONG AGE GROUP!\n" .
+						"    {PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 1);
 				} else {
-					# this error doesn't affect the swimmer's age group - report it only once as a warning:
+					# this error doesn't affect the swimmer's age group - report it as an ERROR anyway!
 					if( ($SwimmerAgeWarningAlreadyReported == 0) || 1 ) {
 						$SwimmerAgeWarningAlreadyReported = 1;
-						PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::InsertSwimmerIntoMySqlDB(): " .
-						"[not REPORTED ONLY ONCE]: invalid age[#2] for " .
-							"'$firstName $lastName' in file \n    $raceFileName." .
-							"The 'dob='$correctedDOB', entry age='$age', but computed age based on " .
-							"dob='$computedAge'.\n    This swimmer will still get their points.", 0);
+						PMSLogging::DumpError(  $raceFileName, $rowNum,
+							"invalid age[#2] for " .
+							"'$firstName $lastName'\n" .
+							"    The 'dob='$correctedDOB', entry age='$age', but computed age based on " .
+							"dob='$computedAge'.\n    This swimmer will still get their points.\n" .
+							"    {PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 0);
 					}
 				}
 				# we will ignore this error and keep going...what else can we do?

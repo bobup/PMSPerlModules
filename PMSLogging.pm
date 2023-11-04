@@ -85,18 +85,30 @@ sub printLog( $ ) {
 sub PrintLog {
 	if( defined fileno( LOG ) ) {
 	    my ( $line, $lineNum, $errStr, $console ) = @_;
-	    my $totalErr;
+	    my $totalErr = $errStr;
 		my $detail = "";
 		if( (($line eq "") || ($line eq "0")) && (($lineNum eq "") || ($lineNum eq "0")) ) {
 			$detail = "";
 		} elsif( ($lineNum eq "") || ($lineNum eq "0") ) {
 			$detail = ": ['$line']";
 		} elsif( (($line eq "") || ($line eq "0")) ) {
-			$detail = ": [line $lineNum]";
+			$detail = ": [line #$lineNum]";
 		} else {
-			$detail = ": [line $lineNum, '$line']";
+			$detail = ": [line #$lineNum, '$line']";
 		}
-	    $totalErr = $errStr . $detail . "\n";
+		# if we have detail to show then show it after the first \n in the $errStr, or at the
+		# end of the $errStr if there is no \n:
+		my $ind;
+		if( $detail ) {
+			if( ($ind = index( $errStr, "\n" )) == -1 ) {
+				# no newline - append on end
+				$totalErr = $errStr . "\n" . $detail;
+			} else {
+				# insert detail just after first \n
+				$totalErr =~ s/\n/\n    $detail/;
+			}
+		}
+	    $totalErr .= "\n";
 	    printLog( $totalErr );
 		if( $console ) {
 			print $totalErr; 
@@ -160,7 +172,7 @@ sub PrintLogNoNL {
 sub DumpError {
 	if( defined fileno( LOG ) ) {
 	    my ( $line, $lineNum, $errStr, $console ) = @_;
-	    PrintLog( $line, $lineNum, "! ERROR: $errStr", $console );
+	    PrintLog( $line, $lineNum, "! ERROR: $errStr\n  -- END ERROR", $console );
 		$numErrorsLogged++;
 	}
 } # end of DumpError
@@ -186,7 +198,7 @@ sub DumpError {
 sub DumpFatalError {
 	if( defined fileno( LOG ) ) {
 	    my ( $line, $lineNum, $errStr, $console ) = @_;
-	    PrintLog( $line, $lineNum, "! FATAL ERROR: $errStr\n! END FATAL ERROR", $console );	    
+	    PrintLog( $line, $lineNum, "! FATAL ERROR: $errStr\n  -- END FATAL ERROR", $console );	    
 		$numErrorsLogged++;
 	}
 } # end of DumpFatalError
@@ -208,7 +220,7 @@ sub DumpFatalError {
 sub DumpWarning {
 	if( defined fileno( LOG ) ) {
      	my ( $line, $lineNum, $errStr, $console ) = @_;
-    	PrintLog( $line, $lineNum, "! WARNING: $errStr", $console );
+    	PrintLog( $line, $lineNum, "! WARNING: $errStr\n  -- END WARNING", $console );
 	}
 } # end of DumpWarning
 
@@ -518,7 +530,7 @@ sub DumpFatalRowError {
 		if( ($rowNum eq "") || ($rowNum eq "0") ) {
 			$rowNum = "?";
 		}
-        $totalErr = "! FATAL ERROR on row $rowNum: $errStr \n  [row $rowNum, '$rowAsString']\n! END FATAL ERROR";
+        $totalErr = "! FATAL ERROR on row $rowNum: $errStr \n  [row $rowNum, '$rowAsString']\n  -- END FATAL ERROR";
     }
     PrintLog( "", "", $totalErr, $console );
     $numErrors = 1;

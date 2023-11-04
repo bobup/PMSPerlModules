@@ -63,7 +63,7 @@ sub ProcessRace( $$$$$ ) {
 	my $resultsGender = "";
 	my $resultsAgeGrp = "";
     my $rowNum = 0;
-	
+
 	@swimsInThisRace = (0,0,0);		# number of CAT1 and CAT2 splashes in this race. [0] is unused
     @dqsInThisRace = (0,0,0);		# number of CAT1 and CAT2 DQs in this race.  [0] is unused
     @ignoredInThisRace = (0,0,0);	# number of CAT1 and CAT2 records ignored.  [0] is unused
@@ -100,10 +100,14 @@ sub ProcessRace( $$$$$ ) {
             PMSLogging::DumpError( "", "", "PMSProcess2SingleFile::ProcessRace():  Unable to open '$fileName' - ABORT!", 1 );
          	die "PMSProcess2SingleFile::ProcessRace(): ABORT: Can't open '$fileName': $!";
          };
-        print "file $fileName: Number of sheets:  1 (it's a " .
+        print  "PMSProcess2SingleFile::ProcessRace(): file $fileName: Number of sheets:  1 (it's a " .
         	( $seperator eq "," ? "comma-separated" : "tab-separated" ) . " .$ext file).\n" if( $PMSConstants::debug >= 1);
-         while (my $row = $csv->getline ($fh)) {
+		while( my $row = $csv->getline( $fh ) ) {
             $rowNum++;
+            if( ($PMSConstants::debug >= 100) || 0 ) {
+    			(my $rowAsString, my $numNonEmptyFields) = PMSUtil::CleanAndConvertRowIntoString( $row );
+            	print  "Row #$rowNum: '$rowAsString'\n";
+            }
             my $previousCategory = $category;
             ProcessRow( $eventName, $raceFileName, $rowNum, $row, \$resultsGender, \$resultsAgeGrp,
                 \$category, $numSwims, $eventId );
@@ -256,7 +260,8 @@ sub ProcessRow( $$$$$$$$ ) {
     	# empty row - ignore it.
     } elsif( $numNonEmptyFields == 1 ) {
     	#  Look for those situations where a row with a single field contains something useful:
-    	if( BeginWetSuit( $row ) ) {
+# removed this wetsuit hack 7sep2023.
+    	if( BeginWetSuit( $row ) && 0 ) {
     		# found a row starting cat 2 results
             PMSLogging::DumpRowWarning( $row, $rowNum, "Found wetsuit division - processing as category 2" );
             $$categoryRef = 2;
@@ -368,7 +373,7 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
     my $errors = 0;
     my $errorSummary = "";
     
-    my $debugLastName = "xxxxzzzzzz";
+    my $debugLastName = "xxxxx";
     
     # does this row have its own value for a gender:age group?
     if( $genAgegrp != 3 ) {
@@ -419,21 +424,21 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
     if( $rowRef->[1] !~ m/^[0-9]+$/ ) {
         # place is not all digits
         $errors++;
-        $errorSummary = "(The value in the PLACE field ('$rowRef->[1]') contains non-digits.)";
+        $errorSummary = "The value in the PLACE field ('$rowRef->[1]') contains non-digits.";
     } elsif( $rowRef->[9] !~ m/^[\d:.]+$/ ) {
     	# time of swim doesn't look reasonable
         $errors++;
-        $errorSummary = "(The value representing the duration of the swim ('$rowRef->[9]') doesn't match the specification.)";
+        $errorSummary = "The value representing the duration of the swim ('$rowRef->[9]') doesn't match the specification.";
     } elsif( (!defined( $rowRef->[2] )) || (length( $rowRef->[2] ) == 0) ) {
         $errors++;
-        $errorSummary = "(The LASTNAME field is empty.)";
+        $errorSummary = "The LASTNAME field is empty.";
     } elsif( (!defined( $rowRef->[3] )) || (length( $rowRef->[3] ) == 0) ) {
         $errors++;
-        $errorSummary = "(The FIRSTNAME field is empty.)";
+        $errorSummary = "The FIRSTNAME field is empty.";
     } elsif( $PMSConstants::RegNumRequired && ((!defined( $rowRef->[7] )) || (length( $rowRef->[7] ) == 0)) ) {
         # Either regnum is required for all races being processed by this program, or it's not. If it is required it must be present and non-empty
         $errors++;
-        $errorSummary = "(Missing USMS REGISTRATION NUMBER field.)";
+        $errorSummary = "Missing USMS REGISTRATION NUMBER field.";
     } elsif( (!defined( $rowRef->[6] )) || (length( $rowRef->[6] ) == 0) ) {
     	# compute their age using the supplied DOB (if supplied)
     	my $dateOfBirth = $rowRef->[8];		# mm/dd/yyyy
@@ -443,10 +448,10 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
 		my $dateOfBirthDef = PMSUtil::GenerateCanonicalDOB($dateOfBirth);		# yyyy-mm-dd
 		my $computedAge = PMSUtil::AgeAtEndOfYear( $dateOfBirthDef );
 		$rowRef->[6] = $computedAge;
-        $errorSummary = "(Note that the age of this swimmer was not supplied so it was computed from their birthdate.)";
+        $errorSummary = "Note that the age of this swimmer was not supplied so it was computed from their birthdate.";
     } elsif( $rowRef->[6] !~ m/^[0-9]+$/ ) {
         $errors++;
-        $errorSummary = "(The AGE field ('$rowRef->[6]') for this swimmer is non-empty but contains non-digits.)"
+        $errorSummary = "The AGE field ('$rowRef->[6]') for this swimmer is non-empty but contains non-digits."
 	}
 
     if( !$errors && PMSUtil::IsValidAge( $rowRef->[6], $resultsAgeGrp ) == $PMSConstants::INVALIDAGE ) {
@@ -465,8 +470,11 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
         	"($resultsAgeGrp).\n  " . $details, 1 );
     } elsif( $errors ) {
         PMSLogging::DumpFatalRowError( $rowRef, $rowNum,
-        	"There is something wrong with this row, so it will be ignored. $errorSummary.\n  " .
-        	"PMSProcess2SingleFile::ProcessResultRow()", 1 );
+        	"There is something wrong with this row, so it will be ignored.\n  $errorSummary\n  " .
+        	"Are you sure you have all of the required columns in the correct order?\n  " .
+        	"PMSProcess2SingleFile::ProcessResultRow()\n  " .
+        	"It should look like this:\n  " .
+        	"Gender:Age Group , Place, Last, First, Middle, Team, Age, Reg #, DOB, Time", 1 );
     }
 
 	my $temp_avoid_warning = $PMSConstants::INVALIDAGE;		# my compiler is stupid...

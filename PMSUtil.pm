@@ -1709,7 +1709,7 @@ sub GetFullFileNameFromPattern {
 		$swimmerDataFile = 	PMSUtil::GetMostRecentVersion( $fileNamePattern, $parentDir );
 		if( (!defined $swimmerDataFile) && (! $dontPrintError) ) {
 			# no file found matching the pattern - this is an ERROR!
-			PMSLogging::DumpError( "", 0, "A $fileType file wasn't found in\n" .
+			PMSLogging::DumpWarning( "", 0, "A $fileType file wasn't found in\n" .
 				"    '$parentDir'\n" .
 				"    using the pattern '$fileNamePattern'. " .
 				"we will assume that there is no new $fileType file to process, BUT FIX THIS!\n" .

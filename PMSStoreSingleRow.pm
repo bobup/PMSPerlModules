@@ -87,6 +87,9 @@ sub StoreResult {
         $numTiesSeenInResults = 0;
         $lastRecordedPlaceSeen = 0;
 	}
+#	PMSLogging::PrintLog( "", "", "PMSStoreSingleRow.pm: StoreResult(): rowNum=$rowNum, genAgeGrpRace='$genAgeGrpRace', " .
+#		"nextExpectedPlace='$nextExpectedPlace{$genAgeGrpRace}'\n" .
+#		"    row='$line'" );
 
 	# get ready to use our database:
 	my $dbh = PMS_MySqlSupport::GetMySqlHandle();
@@ -169,14 +172,16 @@ sub StoreResult {
 	(my $swimmerId, my $correctedRegNum, my $isPMS) = PMS_MySqlSupport::InsertSwimmerIntoMySqlDB( 
 		$dateOfBirth, $regNum, $firstName, $middleInitial,
 		$lastName, $gender, $age, $ageGrp, $genAgeGrpRace, $raceFileName, $team, $eventId,
-		$recordedPlace );
+		$recordedPlace, $rowNum );
 
     if( ($lastName =~ m/$debugLastName/i)  ) {
     	print "PMSStoreSingleRow::StoreResult(): after InsertSwimmerIntoMySqlDB: swimmerid=$swimmerId, correctedRegNum=$correctedRegNum, ispms=$isPMS\n";
     }
 
 
-	# if this is a non-pms swimmer we record the splash and then we're done
+if(0) {
+# remove this and act as though they are a pms swimmer, allowing us to catch and CORRECTLY log incorrect place.   17OCT2023
+	# if this is a non-pms swimmer we record the splash and then we're done.
 	if( !$isPMS ) {
 	    PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, -10,
 	    	$rowRef, $rowNum );
@@ -189,7 +194,9 @@ sub StoreResult {
 #		}
 	    return;
 	}
+}
 			  
+	# THE FOLLOWING COMMENT IS NO LONGER TRUE!  17OCT2023
 	# We get here only if they are a PMS swimmer and have a valid reg number
 
 	# This is a bit tricky:  the results will sometimes list the results in the incorrect order (2nd place
@@ -214,26 +221,35 @@ sub StoreResult {
 			"Found a tie (swimmer $swimmerId) in file $raceFileName." . 
 			"computedPlace=$computedPlace, lastRecordedPlaceSeen=$lastRecordedPlaceSeen", 1 );
 		$numTiesSeenInResults++;
-    } elsif( $recordedPlace == $computedPlace+$numNonPMSSwimmersInThisGroup ) {
+#    } elsif( $recordedPlace == $computedPlace+$numNonPMSSwimmersInThisGroup ) {		18oct2023
+    } elsif( $recordedPlace == $computedPlace ) {
     	# the place we see on this row is what we expect
     	$numTiesSeenInResults = 0;
     } else {
     	# something not right...
-		PMSLogging::DumpError( $line, $rowNum, "Found a major discrepancy between recordedPlace (" .
-			$recordedPlace . ") and computedPlace ($computedPlace).\n" .
-			"  ComputedPlace=$computedPlace, recordedPlace=$recordedPlace, genAgeGrpRace='$genAgeGrpRace',\n" .
-			"    numNonPMSSwimmersInThisGroup=$numNonPMSSwimmersInThisGroup, " .
-			"numTiesSeenInResults=$numTiesSeenInResults,\n" .
+		PMSLogging::DumpFatalError( $line, $rowNum, "Found a major discrepancy between recordedPlace (" .
+			$recordedPlace . ") and computedPlace ($computedPlace) for $firstName $lastName.\n" .
+			"  genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
+			"    numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+			"numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
 			"    lastRecordedPlaceSeen='$lastRecordedPlaceSeen', Swimmer's internal ID=$swimmerId,\n" .
-			"    filename='$raceFileName'.\n    ", 
-			0 );
+			"    filename='$raceFileName'.\n" .
+			"    {PMSStoreSingleRow.pm::StoreResult()}", 
+			1 );
     	$numTiesSeenInResults = 0;
     }
     $lastRecordedPlaceSeen = $recordedPlace;
     
     # store this swimmer's swim in the DB
-    PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, $computedPlace,
-    	$rowRef, $rowNum );
+	if( $isPMS ) {
+		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, $computedPlace,
+			$rowRef, $rowNum );
+	} else {
+		# 17oct2023
+		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, -10,
+			$rowRef, $rowNum );
+	    $numNonPMSSwimmersInThisGroup++;
+	}
    
 } # end of StoreResult()
 

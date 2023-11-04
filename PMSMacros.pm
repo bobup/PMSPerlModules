@@ -479,6 +479,15 @@ sub ProcessMacros {
 				next;
 			}
 			
+			# Aug 23, 2023: if the { is immediately preceded by a backslash (\) then remove the
+			# backslash and pass the { on through with no macro processing:
+			my $posPreceding = $posLeft-1;
+			if( ($posPreceding >= 0) && (substr( $line, $posPreceding, 1 ) eq "\\") ) {
+				substr( $line, $posPreceding, 1, "" );	
+				$posLeft++;
+				next;
+			}
+			
 			$posRight = index( $line, "}", $posLeft+1 );
 			if( $posRight != -1 ) {
 				my $length = $posRight - $posLeft - 1;
