@@ -49,7 +49,7 @@ sub trim($) {
 #	$extraMsg - (optional) an extra string appended to log messages.  If not supplied then "" is assumed.
 #
 # RETURNED:
-#	$returnedDuration - the equivalent duration as an integer in hundredths of a second.
+#	$returnedDuration - the equivalent duration as an integer in hundredths of a second (a Centisecond).
 #
 # NOTES:
 #	It's common for the duration in a result file to be formatted wrong, so we try to handle durations
@@ -63,7 +63,7 @@ sub trim($) {
 #	- mm:ss.tt - assume 0:mm:ss.tt
 #	- use the event distance to make an intelligent guess if we have to.
 #
-sub GenerateCanonicalDurationForDB_v2($$$$) {
+sub GenerateCanonicalDurationForDB_v2($$$$$) {
 	my ($passedDuration, $passedDistance, $rowRef, $rowNum, $extraMsg) = @_;
 	if( !defined $extraMsg ) {
 		$extraMsg = "";
@@ -97,18 +97,16 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
         $hr = "00";
         $min = $1;
         $sec = $2;
-        $hundredths = $3;
+        $hundredths = CleanHundredths( $3 );
         # convert ".5" to ".50"
-        $hundredths .= "0" if( length( $hundredths ) == 1 );
         $convertedTime = "$hr:$min:$sec.$hundredths";
 	} elsif( $convertedTime =~ m/^(\d+)[.,;:](\d+)[.,;:](\d+)[.,;:](\d+)$/ ) {
         # e.g. 3[;:,.]40[;:,.]50[;:,.]45 = 3:40:50.45 (or hh:mm:ss.tt which is standard)
         $hr = $1;
         $min = $2;
         $sec = $3;
-        $hundredths = $4;
+        $hundredths = CleanHundredths( $4 );
         # be sure the .tt is 2 digits 
-        $hundredths .= "0" if( length( $hundredths ) == 1 );
         $convertedTime = "$hr:$min:$sec.$hundredths";
 	} elsif( $convertedTime =~ m/^[.,;:]*(\d+)[.,;:]*$/ ) {
 		# the above pattern assumes  mm  (or .mm. or something like that)
@@ -128,7 +126,7 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
         $hr = $1;
         $min = $2;
         $sec = $3;
-        $hundredths = $4;
+        $hundredths = CleanHundredths( $4 );
 		$returnedDuration = $hr*60*60*100 + $min*60*100 + $sec*100 + $hundredths;
 	}
 	my $strReturnedDuration = GenerateDurationStringFromHundredths( $returnedDuration ) .
@@ -212,6 +210,30 @@ sub GenerateCanonicalDurationForDB_v2($$$$) {
 	}
 	return $returnedDuration;
 } # end of GenerateCanonicalDurationForDB_v2()
+
+
+
+
+#         $hundredths = CleanHundredths( $4 );
+# CleanHundredths - make sure the passed hundredths-of-a-second string is exactly 2 digits, or else
+#		math with the value (when converted from string to integer) won't work when used to compute
+#		a duration value.  Example:
+#			".123" ("123" passed to this routine), if interpreted as "hundredths-of-a-second", will 
+#				turn into 1.23 seconds!
+#			".8" ("8" passed to this routine), if interpreted as "hundredths-of-a-second", will  
+#				turn into ".08" seconds (instead of ".80" seconds.)
+sub CleanHundredths( $ ) {
+	my $hundredths = $_[0];
+	if( length( $hundredths ) == 1 ) {
+		# e.g. ".3" was specified, so "3" was passed.  We need to convert to hundredths of a second:
+		$hundredths .= "0";		# e.g. "30", meaning ".30"
+	} elsif( length( $hundredths ) > 2 ) {
+		# e.g. ".456" was specified, but we want a resolution of only hundredths.  Chop off extra digits
+		$hundredths =~ s/^(..).*$/$1/;
+	}
+	return $hundredths;
+} # end of CleanHundredths()
+
 
 
 
@@ -861,7 +883,7 @@ sub GenerateCanonicalGender($$$) {
 #	$simpleFileName - the simple file name of the result file for the event, e.g. 
 #		"2014 Whiskeytown 2 Mile=CAT1.csv"
 #	$calendarRef - a reference to the calendar hash
-#	$detail - the detail to return.  One of:  FileName, CAT, Date, Distance, FullName, UniqueID
+#	$detail - the detail to return.  One of:  FileName, CAT, Date, Distance, EventName, UniqueID, Link
 #
 # RETURNED:
 #	$result - the data requested (if found), or "(unknown)" if not found.
@@ -889,6 +911,28 @@ sub GetEventDetail( $$$ ) {
 } # end of GetEventDetail()
 
 
+
+# 	PMSUtil::SetEventDetail( $raceFileName, $calendarRef, $genSimpleFileName, $detailName );
+sub SetEventDetail( $$$$ ) {
+    my ($simpleFileName, $calendarRef, $detail, $detailName) = @_;
+	
+	# compute the key to passed detail for the event designated by the passed simple file name
+	for( my $raceOrder=1; ; $raceOrder++ ) {
+		my $match = $calendarRef->{$raceOrder};
+		if( !defined( $match ) ) {
+			# didn't find the right key - this is a problem!
+			PMSLogging::DumpError( 0, 0, "PMSUtil::SetEventDetail(): " .
+				"Unable to find the calendar details for the event with the simple file name of '$simpleFileName'.  " .
+				"Tried " . ($raceOrder-1) . " different matches.", 1 );
+			last;
+		}
+		if( $simpleFileName eq $match ) {
+			$calendarRef->{"$raceOrder-$detailName"} = $detail;
+			last;
+		}
+	}		
+	
+} # end of SetEventDetail()
 
 
 # IncrementAgeGroup - given the passed age group compute the next one.
@@ -1713,7 +1757,7 @@ sub GetFullFileNameFromPattern {
 				"    '$parentDir'\n" .
 				"    using the pattern '$fileNamePattern'. " .
 				"we will assume that there is no new $fileType file to process, BUT FIX THIS!\n" .
-				"    (Did you mean to execute with '-empty'?)", 1 );
+				"    (Did you mean to execute with '-empty'?)", 0 );
 		}
 	}
 	return $swimmerDataFile;

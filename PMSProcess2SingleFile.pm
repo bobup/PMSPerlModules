@@ -12,7 +12,10 @@ require PMSUtil;
 require PMSConstants;
 require PMSStoreSingleRow;
 require PMS_MySqlSupport;
+use Data::Dumper qw(Dumper);
 
+sub BeginGenHTMLRaceResults( $$ );
+sub EndGenHTMLRaceResults();
 
 #use lib '../PerlCpan/Graphics-ColorUtils-0.17/lib';
 #use lib '../PerlCpan/Spreadsheet-ParseXLSX-0.27/lib';
@@ -57,7 +60,7 @@ my @ignoredInThisRace;	# number of CAT1 and CAT2 records that appear to be non-D
 # SIDE-EFFECTS:
 #   The database is populated by this function, containing data gathered while processing the race passed to this function.
 #   
-sub ProcessRace( $$$$$ ) {
+sub ProcessRace( $$$$$$ ) {
     my( $fileName, $eventName, $raceFileName, $numSwims, $category, $calendarRef ) = @_;
     my $result = -1;
 	my $resultsGender = "";
@@ -78,12 +81,16 @@ sub ProcessRace( $$$$$ ) {
     $ext =~ s/^.*\.//;
     $ext = lc( $ext );
 
+    # begin our own generation of human readable results:
+	my $hrResults = BeginGenHTMLRaceResults( $raceFileName, $calendarRef );
+    
     # Store the detauls that we know about this event into our DB:
     my $distance = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Distance" );
     my $eventDate = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Date" );
  	my $eventUniqueID = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "UniqueID" );
     my $eventId = PMS_MySqlSupport::InitialRecordThisEvent( $eventName, $fileName, $raceFileName, $ext, $category,
-    	$eventDate, $distance, $eventUniqueID, -1, -1 );
+    	$eventDate, $distance, $eventUniqueID, $hrResults, -1, -1 );
+    
     
     # Now, get to work!
     if( ! $ext ) {
@@ -119,7 +126,7 @@ sub ProcessRace( $$$$$ ) {
 				
 				# initialize this new event:
 			    $eventId = PMS_MySqlSupport::InitialRecordThisEvent( $eventName, $fileName, $raceFileName, $ext, $category,
-			    	$eventDate, $distance, $eventUniqueID, -1, -1 );
+			    	$eventDate, $distance, $eventUniqueID, "", -1, -1 );
             }
          }
          $csv->eof or $csv->error_diag ();
@@ -174,7 +181,7 @@ sub ProcessRace( $$$$$ ) {
 				
 				# initialize this new event:
 			    $eventId = PMS_MySqlSupport::InitialRecordThisEvent( $eventName, $fileName, $raceFileName, $ext, $category,
-			    	$eventDate, $distance, $eventUniqueID, -1, -1 );
+			    	$eventDate, $distance, $eventUniqueID, "", -1, -1 );
             }
 	    }
     } # done with .xlsx file
@@ -196,6 +203,9 @@ sub ProcessRace( $$$$$ ) {
 	# now that we know the stats on this event we'll update the DB
 	PMS_MySqlSupport::UpdateThisEvent( $eventId, $swimsInThisRace[$category], $dqsInThisRace[$category] );
 
+	# we're finished generating the human readable results:
+	EndGenHTMLRaceResults();
+	
     return ($swimsInThisRace,$dqsInThisRace);
         
 } # end of ProcessRace()
@@ -301,6 +311,7 @@ sub ProcessRow( $$$$$$$$ ) {
             ###
             PMSLogging::DumpRowWarning( $row, $rowNum, "Ignoring possible DQ line with multiple fields." );
             $dqsInThisRace[$$categoryRef]++;
+### show dqs in human readable results?
         } else {
         	# FINALLY!  This is starting to look like a real result!  First, extract the gender/age group from it:
 	        my ($genAgegrp, $newGender, $newAgeGrp) = GenderAgeGrpRow( $row, $rowNum, $row->[0] );
@@ -489,6 +500,8 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
 	    PMSStoreSingleRow::StoreResult( $rowRef, $rowNum, $numSwims, $category, 
 	        $raceFileName, $eventId );
 	    $swimsInThisRace[$category]++;
+		# generate a human readable result row for our human readable results html file:
+		GenHTMLRaceResultRow( $rowRef, $category );
     } else {
     	$ignoredInThisRace[$category]++;
     }
@@ -644,8 +657,376 @@ sub GenderAgeGrpRow {
 }  # end of GenderAgeGrpRow
 
 
+#==================================================
+#======= GENERATE HUMAN READABLE RESULTS===========
+#==================================================
+#==================================================
 
 
+use Time::Piece;
+# the file handle for the HTML human readable age group results file we're generating:
+my $generatedAGFileHandle;
+# the file handle for the HTML human readable overall results file we're generating:
+my $generatedORFileHandle;
+
+# 	my $hrResults = BeginGenHTMLRaceResults( $raceFileName, $calendarRef );
+#
+# BeginGenHTMLRaceResults - Initialize the creation  of human readable results and overall results
+#	for this event.
+#
+# PASSED:
+#	$raceFileName - the partial path name of the file we're processing for this event.
+#	$calendarRef - a reference to the calendar hash, part of which describes this event.
+#
+# RETURNED:
+#	$result - the link to the human readable results initialized by this routine.
+#
+# SIDE EFFECTS:
+#	Two files are created and partially written:
+#		- human readable age group results in .html form
+#		- human readable overall results in .html form
+#
+sub BeginGenHTMLRaceResults( $$ ) {
+    my($raceFileName, $calendarRef ) = @_;
+    my $eventDate = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Date" );		# yyyy-m-d
+    my $eventName = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "EventName" );
+    my $cat = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "CAT" );
+    my $link = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Link" );
+    if( ! defined $link ) {
+    	$link = "https://www.pacificmasters.org/page.cfm?pagetitle=Open+Water+Competition";
+    }
+	# get the date in a more human friendly format:
+	my $date = Time::Piece->strptime( $eventDate, "%F" );
+	my $mydate = $date->strftime( "%A, %B %e, %Y" );
+
+	# get some values we're using in our template files:
+	PMSStruct::GetMacrosRef()->{"EventName"} = $eventName;
+	PMSStruct::GetMacrosRef()->{"Date"} = $mydate;
+	PMSStruct::GetMacrosRef()->{"CAT"} = $cat;
+	PMSStruct::GetMacrosRef()->{"catmeaning"} = "No Wetsuit";
+	if( $cat == 2 ) {
+		PMSStruct::GetMacrosRef()->{"catmeaning"} = "Wetsuit";
+	}
+	PMSStruct::GetMacrosRef()->{"Link"} = $link;
+	# compute a background picture
+	my $backPicture = ComputeBackgroundImage( $raceFileName, $calendarRef );
+	PMSStruct::GetMacrosRef()->{"BackgroundPicture"} = $backPicture;
+
+	###############################################################################
+	########################## AGE GROUP RESULTS ##################################
+	###############################################################################
+	# get the full path name of the template file we're going to use:
+	my $templateGenResRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
+	my $templateGenResHeadPathName = $templateGenResRoot . "ReadableResultHead.html";
+	# get the full path name of the HTML file we're going to generate and open it for writing
+	my $genSimpleFileName = "$eventName-cat$cat-AG.html";
+	# modify the file name:
+	#	replace spaces with underscores
+	$genSimpleFileName =~ s/\s+/_/g;
+	#	replace '/' with dash
+	$genSimpleFileName =~ s;/+;-;g;
+	# remember this file name so we can link to it in the OW points page
+	PMSLogging::DumpNote( "", "", "Begin generation of human readable results: file generated: '$genSimpleFileName'", 1);
+	my $generatedFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genSimpleFileName";
+	open( $generatedAGFileHandle, "> $generatedFileName" ) || die( "PMSProcess2SingleFile::BeginGenHTMLRaceResults(): " .
+		"  Can't open/create $generatedFileName: $!" );
+
+	###############################################################################
+	########################## OVERALL RESULTS ####################################
+	###############################################################################
+	# get the full path name of the template file we're going to use:
+	my $templateGenORRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
+	my $templateGenORHeadPathName = $templateGenResRoot . "OverallResultHead.html";
+	# get the full path name of the HTML file we're going to generate and open it for writing
+	my $genORSimpleFileName = "$eventName-cat$cat-OR.html";
+	# modify the file name:
+	#	replace spaces with underscores
+	$genORSimpleFileName =~ s/\s+/_/g;
+	#	replace '/' with dash
+	$genORSimpleFileName =~ s;/+;-;g;
+	# remember this file name so we can link to it in the OW points page
+	PMSLogging::DumpNote( "", "", "Begin generation of overall results: file generated: '$genORSimpleFileName'", 1);
+	my $generatedORFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genORSimpleFileName";
+	open( $generatedORFileHandle, "> $generatedORFileName" ) || die( "PMSProcess2SingleFile::BeginGenHTMLRaceResults(): " .
+		"  Can't open/create $generatedORFileName: $!" );
+	PMSStruct::GetMacrosRef()->{"AGFileName"} = $genSimpleFileName;
+	PMSTemplate::ProcessHTMLTemplate( $templateGenORHeadPathName, $generatedORFileHandle );
+
+	###############################################################################
+	########################## AGE GROUP RESULTS ##################################
+	###############################################################################
+	PMSStruct::GetMacrosRef()->{"ORFileName"} = $genORSimpleFileName;
+	PMSTemplate::ProcessHTMLTemplate( $templateGenResHeadPathName, $generatedAGFileHandle );
+
+	my $result = PMSStruct::GetMacrosRef()->{"hrResultsSimpleDir"} . $genSimpleFileName;
+	print "BeginGenHTMLRaceResults(): backPicture='$backPicture', return '$result'\n";
+	return $result;
+	
+} # end of BeginGenHTMLRaceResults()
+
+
+
+
+
+#
+# 		GenHTMLRaceResultRow( $rowRef, $category );
+#
+# GenHTMLRaceResultRow - Given a single row of our race results describing the swim by
+#	one swimmer generate a single row of human readable results, and also store information
+#	to later be used to generate overall results.
+#
+# PASSED:
+#	$rowRef - a reference to an array holding details of one specific swim in this event.
+#	$category - the suit category of the event.
+#
+# RETURNED:
+#	n/a
+#
+
+# Static variables used by this routine and other related routines:
+my $currentGenderAge = "";
+my $colorClass = "";			# will be used to color some rows
+my $numberWithThisGenderAge = "";
+
+# CONSTRUCTING OVERALL RESULTS:
+# %overall{time-id} = details   -  id is a unique id (numeric) used to identify this swimmer
+#		in this event.  The time is the time of a swim, in hundredths of a second,
+#	and details is the following string:
+#		Name:::age:::gender:age group:::club:::time:::humanTime
+#	where:
+#		Name - is the name of the swimmer:  First Last
+#		age - is the age of  the swimmer (as of Dec 31 of race year)
+#		gender:age group - gender is 'M' for men; age group is xx-yy
+#		club - initials of Club
+#		time  - the time in hundredths of a second
+#		humanTime - the time in the form 1:03:33.09 (1 hour, 3 minutes, 33 seconds, 9 hundredths
+my %overall = ();
+my $overallId = 0;
+
+sub GenHTMLRaceResultRow( $$ ) {
+	my ($rowRef, $category) = @_;
+	
+    # This is a summary of the data that we should have now:
+    # $rowRef->[0] - gender:age group
+    # $rowRef->[1] - place - must be non-empty
+    # $rowRef->[2] - lastname - can be anything but must be non-empty
+    # $rowRef->[3] - firstname - can be anything but must be non-empty
+    # $rowRef->[4] - MI - can be anything and can be empty
+    # $rowRef->[5] - team - can be anything
+    # $rowRef->[6] - age - must be non-empty and all digits
+    # $rowRef->[7] - reg # - can be anything but must be non-empty
+    # $rowRef->[8] - DOB - can be anything but needed if no age ([6]) supplied
+    # $rowRef->[9] - time|distance - can be anything 
+
+	###############################################################################
+	########################## AGE GROUP RESULTS ##################################
+	###############################################################################
+	# this is used to get the full path name of the template file we're going to use:
+	my $templateGenResRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
+
+	# First, is this a new gender/age group?
+	if( $currentGenderAge ne $rowRef->[0] ) {
+		# YES! begin a new section
+		# get the full path name of the template files we're going to use:
+		my $templateGenResSectionStartPathName = $templateGenResRoot . "ReadableResultBeginSection.html";
+		my $templateGenResSectionEndPathName = $templateGenResRoot . "ReadableResultEndSection.html";
+	
+		# end the current section (unless this is the beginning of the first section)
+		if( $currentGenderAge ne "" ) {
+			PMSTemplate::ProcessHTMLTemplate( $templateGenResSectionEndPathName, $generatedAGFileHandle );
+		}
+		
+		# start the new section
+		$rowRef->[0] =~ m/^(.):(.+)$/;
+		my $gender = $1;
+		my $ageGroup = $2;
+		if( $gender eq "M" ) {
+			$gender = "Men";
+			$colorClass = "resultRowClassMen";
+		} else {
+			$gender = "Women";
+			$colorClass = "resultRowClassWomen";
+		}
+		PMSStruct::GetMacrosRef()->{"Gender"} = $gender;
+		PMSStruct::GetMacrosRef()->{"AgeGroup"} = $ageGroup;
+		PMSTemplate::ProcessHTMLTemplate( $templateGenResSectionStartPathName, $generatedAGFileHandle );
+		$currentGenderAge = $rowRef->[0];
+		# keep track of the odd/even rows:
+		$numberWithThisGenderAge = 0;
+	}
+
+	$numberWithThisGenderAge++;
+	
+	# Now we're ready to generate the single result row for the passed swimmer:
+	# get the full path name of the template file we're going to use:
+	my $templateGenResRowPathName = $templateGenResRoot . "ReadableResultRow.html";
+
+	# generate one row of the human readable results:
+	PMSStruct::GetMacrosRef()->{"Place"} = $rowRef->[1];
+	PMSStruct::GetMacrosRef()->{"Name"} = $rowRef->[3] . " " . $rowRef->[2];
+	PMSStruct::GetMacrosRef()->{"Age"} = $rowRef->[6];
+	PMSStruct::GetMacrosRef()->{"Club"} = $rowRef->[5];
+	PMSStruct::GetMacrosRef()->{"Time"} = $rowRef->[9];
+	# how do we color this row?
+	my $colorForThisRow = "";
+	if( $numberWithThisGenderAge % 2 ) {
+		$colorForThisRow = $colorClass;
+	} else {
+		$colorForThisRow = "resultRowClassNoColor";
+	}
+	PMSStruct::GetMacrosRef()->{"resultrowclass"} = $colorForThisRow;
+	PMSTemplate::ProcessHTMLTemplate( $templateGenResRowPathName, $generatedAGFileHandle );
+
+	###############################################################################
+	########################## OVERALL RESULTS ####################################
+	###############################################################################
+	# NOW, we're going to record details on this swimmer and race so we can later generate
+	# overall results:
+	my $timeInCS = PMSUtil::GenerateCanonicalDurationForDB_v2( PMSStruct::GetMacrosRef()->{"Time"},
+		0, "", "", "called by GenHTMLRaceResultRow()" );
+	$overallId++;
+	$overall{$timeInCS-$overallId} = PMSStruct::GetMacrosRef()->{"Name"} . ":::" .
+		PMSStruct::GetMacrosRef()->{"Age"} . ":::" .
+		$rowRef->[0] . ":::" .
+		PMSStruct::GetMacrosRef()->{"Club"} . ":::" .
+		$timeInCS . ":::" .
+		PMSStruct::GetMacrosRef()->{"Time"};
+		
+} # end of GenHTMLRaceResultRow()
+
+
+
+# EndGenHTMLRaceResults - finish generating the human readable results for a single
+#	event. In addition, construct the overall results for this event.
+#
+sub EndGenHTMLRaceResults() {
+
+	###############################################################################
+	########################## AGE GROUP RESULTS ##################################
+	###############################################################################
+	# get the full path name of the template files we're going to use:
+	my $templateGenResRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
+
+	# if a section is in progress then we need to end it:
+	if( $currentGenderAge ne "" ) {
+		my $templateGenResSectionEndPathName = $templateGenResRoot . "ReadableResultEndSection.html";
+		PMSTemplate::ProcessHTMLTemplate( $templateGenResSectionEndPathName, $generatedAGFileHandle );
+	}
+
+	# now end the readable results html file:
+	my $templateGenResTailPathName = $templateGenResRoot . "ReadableResultTail.html";
+	# ...all done with human readable results!
+	PMSTemplate::ProcessHTMLTemplate( $templateGenResTailPathName, $generatedAGFileHandle );
+
+	close( $generatedAGFileHandle );
+	undef $generatedAGFileHandle;
+
+	###############################################################################
+	########################## OVERALL RESULTS ####################################
+	###############################################################################
+	my $oaPlace = 0;
+	my $previousTime = 0;
+	my $placeCatchUp = 0;
+	# get the full path name of the template file we're going to use:
+	my $templateGenORRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
+	my $templateGenORRowPathName = $templateGenResRoot . "OverallResultRow.html";
+	# pass through our list of swimmers, fastest to slowest, and keep track of every
+	# swimmer's overall place
+	my $rowColor = 0;
+	foreach my $key( sort keys %overall ) {
+		my $detailString = $overall{$key};			# details of this swimmer
+		# This detail string looks like this:
+		#	Name:::Age:::Gender:Age Group:::Club:::Time in CS:::human readable time
+		my @details = split(  ":::", $detailString );
+		my $time = $details[4];						# time in hundredths
+		if( $time == $previousTime ) {
+			# this swimmer  tied the previous swimmer, so they are the same overall place.
+			# but we need to keep track of the overall places...
+			$placeCatchUp++;
+		} else {
+			$oaPlace += ($placeCatchUp + 1);
+			$placeCatchUp = 0;
+			$previousTime = $time;
+		}
+		PMSStruct::GetMacrosRef()->{"ORPlace"} = $oaPlace;
+		PMSStruct::GetMacrosRef()->{"ORName"} = $details[0];
+		PMSStruct::GetMacrosRef()->{"ORAge"} = $details[1];
+		PMSStruct::GetMacrosRef()->{"ORGenAge"} = $details[2];
+		PMSStruct::GetMacrosRef()->{"ORClub"} = $details[3];
+		PMSStruct::GetMacrosRef()->{"ORTime"} = $details[5];
+		# set our row color:
+		$rowColor++;
+		$rowColor = 1 if( $rowColor > 2 );
+		PMSStruct::GetMacrosRef()->{"RowSpanOptions"} = "background-color:Black; color:White"
+			if( $rowColor == 1 );
+		PMSStruct::GetMacrosRef()->{"RowSpanOptions"} = "background-color:White; color:Black"
+			if( $rowColor == 2 );
+		# generate the row
+		PMSTemplate::ProcessHTMLTemplate( $templateGenORRowPathName, $generatedORFileHandle );
+	} # end of foreach...
+	# done with overall results - finish it up:
+	my $templateGenORTailPathName = $templateGenResRoot . "OverallResultTail.html";
+	PMSTemplate::ProcessHTMLTemplate( $templateGenORTailPathName, $generatedORFileHandle );
+	
+	close( $generatedORFileHandle );
+	undef( $generatedORFileHandle );
+	%overall = ();
+	
+} # end of EndGenHTMLRaceResults()
+
+
+
+# 	my $backPicture = ComputeBackgroundImage( $raceFileName, $calendarRef );
+#
+# ComputeBackgroundImage - figure out what background image (if any) we will show with
+#	the passed OW event.
+#
+# PASSED:
+#	$raceFileName - the partial path name of the file we're processing for this event.
+#	$calendarRef - a reference to the calendar hash, part of which describes this event.
+#
+# RETURNED:
+#	$result - path name to the background image to use, or "" if none. The path is relative
+#		to the human readable result file(s) that the image will be used in.
+#
+sub ComputeBackgroundImage( $$ ) {
+	my ($raceFileName, $calendarRef) = @_;
+	my $result = "";
+
+    my $keyword = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Keywords" );
+    # use the first keyword as the name of the directory holding background images for this event
+    $keyword =~ s/,.*$//;
+	# modify the file name:
+	#	replace spaces with underscores
+	$keyword =~ s/\s+/_/g;
+	#	replace '/' with dash
+	$keyword =~ s;/+;-;g;
+	# compute the full path name of the directory holding background images for this event:
+	my $fullPath = PMSStruct::GetMacrosRef()->{"AppDirName"} . "/Background/" . 
+		PMSStruct::GetMacrosRef()->{"YearBeingProcessed"} . "/$keyword/";
+	# get a list of .jpg and .jpeg files in the above directory:
+	my $dirHandle;
+	if( opendir( $dirHandle, $fullPath ) ) {
+		# we have a directory of 0 or more background images to be used
+		my @listOfFiles = grep( /(.jpg)|(.jpeg)$/i, readdir $dirHandle ); 
+		my $numBackgrounds = scalar( @listOfFiles );
+		my $index = int( rand( $numBackgrounds ) );
+		$result = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"} . "/$keyword/" . $listOfFiles[$index];
+		closedir( $dirHandle );
+		} else {
+			# no specific background  images - use some default one
+			$fullPath = PMSStruct::GetMacrosRef()->{"AppDirName"} . "/Background/misc/";
+			if( opendir( $dirHandle, $fullPath ) ) {
+				# we have a directory of 0 or more background images to be used
+				my @listOfFiles = grep( /(.jpg)|(.jpeg)$/i, readdir $dirHandle ); 
+				my $numBackgrounds = scalar( @listOfFiles );
+				my $index = int( rand( $numBackgrounds ) );
+				$result = "misc/" . $listOfFiles[$index];
+				closedir( $dirHandle );
+			}
+		}
+	return $result;
+} # end of ComputeBackgroundImage()
 
 
 1;  # end of module

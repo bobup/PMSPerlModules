@@ -13,7 +13,6 @@ use PMSLogging;
 require PMSUtil;
 require PMSStruct;
 
-
 use strict;
 use sigtrap;
 use warnings;
@@ -1648,13 +1647,14 @@ sub DistanceForThisEvent( $$$ ) {
 # --- Date : the date of this event.
 # --- UniqueEventID : a UNIQUEID for this exact event over all years this exact event was held.
 #		The same event for cat 1 and cat 2 has the same UniqueEventID
+# --- hrResults - a URL (partial likely) pointing to the human readable results. "" means we don't have any.
 # --- NumSplashes : number of individual swimmers in this event
 # --- NumDQs : of the NumSplashes swimmers this is the number that were DQed.
 #
-sub InitialRecordThisEvent( $$$$$$$$$$ ) {
+sub InitialRecordThisEvent( $$$$$$$$$$$ ) {
 	my $sth, my $rv;
 	(my $eventName, my $eventFullPath, my $eventSimpleFileName, my $fileType, my $category, my $eventDate,
-		my $distance, my $UniqueEventID, my $numSplashes, my $numDQs) = @_;
+		my $distance, my $UniqueEventID, my $hrResults, my $numSplashes, my $numDQs) = @_;
 	my $eventId = 0;
 	my $dbh = GetMySqlHandle();
 
@@ -1677,9 +1677,10 @@ sub InitialRecordThisEvent( $$$$$$$$$$ ) {
 		($sth, $rv) = PrepareAndExecute( $dbh,
 	    	"INSERT INTO Events " .
 	    		"(EventName, EventFullPath, EventSimpleFileName, FileType, Category, " .
-	    		"Distance, Date, UniqueEventID, NumSplashes, NumDQs) " .
+	    		"Distance, Date, UniqueEventID, hrResults, NumSplashes, NumDQs) " .
 	    		"VALUES (\"$eventName\", \"$eventFullPath\", \"$eventSimpleFileName\", \"$fileType\", " .
-	    		"\"$category\", \"$distance\", \"$eventDate\", \"$UniqueEventID\", \"$numSplashes\", \"$numDQs\")" );
+	    		"\"$category\", \"$distance\", \"$eventDate\", \"$UniqueEventID\", " .
+	    		"\"$hrResults\", \"$numSplashes\", \"$numDQs\")" );
     	$eventId = $dbh->last_insert_id(undef, undef, "Events", "EventId");
     	die "Can't determine EventId of newly inserted Event" if( !defined( $eventId ) );
 	} else {
@@ -1970,7 +1971,7 @@ sub GetListOfRaces( $ ) {
 	my $pointsToGet = "Cat".$category."Points";
 
 	($sth, $rv) = PrepareAndExecute( $dbh,
-		"SELECT EventId, EventName, Date, EventFullPath FROM Events " .
+		"SELECT EventId, EventName, Date, EventFullPath, hrResults FROM Events " .
 		"WHERE Category = $category " .
 		"ORDER BY EventId ASC", "");
 	return $sth;
