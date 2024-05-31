@@ -317,7 +317,7 @@ sub ProcessInclude( $$$ ) {
 	my $propertiesFileName = basename($value);
 	
 	GetProperties( $propertiesDir2, $propertiesFileName, $yearBeingProcessed );
-}
+} # end of ProcessInclude()
 
 
 
