@@ -63,7 +63,7 @@ sub trim($) {
 #	- mm:ss.tt - assume 0:mm:ss.tt
 #	- use the event distance to make an intelligent guess if we have to.
 #
-sub GenerateCanonicalDurationForDB_v2($$$$$) {
+sub GenerateCanonicalDurationForDB_v2 {
 	my ($passedDuration, $passedDistance, $rowRef, $rowNum, $extraMsg) = @_;
 	if( !defined $extraMsg ) {
 		$extraMsg = "";

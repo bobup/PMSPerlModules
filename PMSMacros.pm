@@ -327,42 +327,39 @@ sub ProcessInclude( $$$ ) {
 # NOTE: THERE ARE 2 VERSIONS OF CALENDAR LINE THIS ROUTINE CAN HANDLE
 #
 # PASSED:
-#	VERSION 1:
-#	$line - a calendar line which is a line used to define one specific OW event. 
-#		This line tells us: the file
-#		containing the results, the category of the event, the date, the distance, the name
-#		that we'll call that event in our Accumulated Points report, a "UniqueID" that allows
-#		us to recognize the exact same event across multiple years
-
-
+#	$line - a calendar line which is a physical line used to begin (or completely contain, 
+#		depending on the version) one specific OW event. A $line is made up of a sequence of
+#		fields, where each field looks like this:
+#			X	->
+#		where 'X' is a piece of data describing a single OW event.
+#		VERSION 1: a $line expressed in the Version 1 format looks like this:
+			#	[version  ->]	file name	->	cat ->   yyyy-mm-dd	->	distance (miles)	-> human readable swim name  ->  Unique Event Id	-> keywords
+			# e.g.
+			#	2014 Spring Lake 1 Mile=CAT1.csv	->	1	->	2014-06-23	->	1	-> 2014 Spring Lake 1 Mile  ->  1	->	Spring
+			# or
+			#	1	2014 Spring Lake 1 Mile=CAT1.csv	->	1	->	2014-06-23	->	1	-> 2014 Spring Lake 1 Mile  ->  1	->	Spring
+			# where [version   ->] is optional but if supplied is "1" followed by a "->".  All other fields except keywords are required.
+#			Note that it's assumed that a 'file name' cannot be a single digit (or else we'll think
+#			it's a Version number.)
+#		VERSION 2: Each "virtual line" of the calendar is made up of one or more physical lines where a all but the last physical line of
+			# a virtual line ends with a '\', implying that the next line logically follows the current line.  The order of the 
+			# fields of the virtual line is different than Version 1. It is:
+			#	VERSION	->	event name -> cat -> date -> distance -> unique event id -> keywords -> file name -> link 
+			# e.g.
+			#	2	->	2014 Spring Lake 1 Mile  ->  1	->	2014-06-23	->	1	->	1	->	Spring	->	2014 Spring Lake 1 Mile=CAT1.csv	->	https://www.clubassistant.com/c/6403675/file/competitions/SpringLake.pdf
+			# where VERSION is "2". Note the following:
+			#	- There is one additional field: link: this is a link to a description of this event for this year.
+			#	- The Version field is no longer optional (it's "2" in this case)
+			#	- The Keywords field is no longer optional
+			#	- All other fields are the same as described above except they are in a different order.
+#
 #	$yearBeingProcessed - See GetProperties()
 #
 # RETURNED:
 #	n/a
 #
 # NOTES:
-					#	There are two different kinds of physical lines that, when combined, make up a single calendar line.
-					#	A physical line that does NOT begin with a whitespace character is the first physical line of
-					#	a calendar line. All following lines that BEGIN with a whitespace character make up the 
-					#	continuation of the calendar line in progress.  For example, a calendar line may look like this:
-					#	  |
-					#     V here is where the first column if a physical line begins
-					#	  File/Path/to/result		->	1		2024-6-1	->
-					#		  1		->	Lake Berryessa 1 Mile		->		3 	->
-					#		  https://link-to-event-info			->		Berryessa
-					#	Note that the above calendar line is made up of 3 physical lines. Following the above calendar
-					#	line there can be another, like this:
-					#	  File/Path/to/another/result		->	2	-> 2024-6-2		->
-					#		.... etc ....
-					#
-					#
-# Basically, all the important lines look like this:
-#		file								CAT		date		 distance			event name			UniqueID   		Link
-#		name							  				  		(miles)	
-#--------------------------------------------------------------------------------------
-#	2014 Spring Lake 1 Mile=CAT1.csv	-> 	1	->	2014-05-17	->	1		->	 Spring Lake 1 Mile  -> 	1		-> https://....		->  
-#
-# Note:  the order of the races is implied by the order of lines in the property file, not the
+# 	The order of the races is implied by the order of lines in the property file, not the
 #	date of the races.  This is due to the fact that there are often multiple races on the
 #	same day and we want the order of events in the generated Accumulated Points page to
 #	be deterministic.
@@ -684,7 +681,10 @@ sub ValidateCalendar() {
 			#if( $eventName ne $resultHash->{'EventName'} ) {
 			# 25jun2023: check to see if the event name in the database is the same as
 			# same as the BEGINING of the event name in the calendar.
-			if( index( $eventName, $resultHash->{'EventName'} ) != 0 ) {
+			
+			if( $resultHash->{'EventName'} !~ m/^$eventName/i ) {
+			
+#			if( index( $eventName, $resultHash->{'EventName'} ) != 0 ) {
 	        	PMSLogging::DumpError( "", "", "PMSMacros::ValidateCalendar(): Found an event " .
 	        		"in the EventHistory with UniqueEventID='$eventUniqueID' but the name of the event in " .
 	        		"the EventHistory is '" . $resultHash->{'EventName'} . "' which doesn't match the " .
