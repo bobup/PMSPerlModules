@@ -14,10 +14,13 @@ use sigtrap;
 use warnings;
 
 ## Only used in this file:
-my %nextExpectedPlace;      # $nextExpectedPlace{gender:ageGrp/numSwim/category} - While processing results this is the next place we expect to see for the given gender,
-                            # age group, and race.  If undefined then we haven't started processing that gender/age group/race.  If -1 it means we found a place
-                            # out of order and already reported it for that gender/age group/race.  Used in StoreResult() to catch cases where the results show places
-                            # out of order or (worse) missing places.
+my %nextExpectedResultPlace;    # $nextExpectedResultPlace{gender:ageGrp/numSwim/category} - While processing results this is the next place 
+								# we expect to see for the given gender,
+                            	# age group, and race IN THE RESULTS.  If undefined then we haven't started processing that gender/age group/race.  
+                            	# If -1 it means we found a place in the results
+                            	# out of order and already reported it for that gender/age group/race.  Used in StoreResult() to 
+                            	# catch cases where the results show places
+                            	# out of order or (worse) missing places.
 my $numNonPMSSwimmersInThisGroup;	# $numNonPMSSwimmersInThisGroup is the number of non-PMS
 									# swimmers we've seen SO FAR in the current gender/age group / swim / category.  Used to
 									# help us assign the correct place to PMS swimmers.
@@ -27,7 +30,14 @@ my $numTiesSeenInResults;			# $numTiesSeenInResults is the number of consecutive
 									# help us assign the correct place to PMS swimmers.
 my $lastRecordedPlaceSeen;			# The recorded place of the previous row seen, 0 if we're looking at the first row
 									# of a specific gender/age group / swim / category.
-
+my $lastRecordedTimeSeen;			# The time, an integer representing hundredths of a second, of the previous swim duration seen
+									# for this gender/age group. If we're looking at the first row of a specific 
+									# gender/age group / swim / category this value will be 0 (since there is no previous swim).
+									# NOTE: THIS IS ONLY USED FOR EVENTS FOR WHICH THE EVENT IS TIMED! If the distance is measured instead
+									# then this is not used.
+my $computedPMSPlace;				# we also need to track the next PMS swimmer's place. Normally this is the same as their place
+									# in the results ($recordedPlace below if no errors in the results) but it won't be if non-PMS 
+									# swimmers are placed faster than the PMS swimmer.
 
 
 # StoreResult - store one result line (place, name, team, etc) along with gender/age
@@ -43,7 +53,7 @@ my $lastRecordedPlaceSeen;			# The recorded place of the previous row seen, 0 if
     # $rowRef->[6] - age - must be non-empty and all digits
     # $rowRef->[7] - reg # - can be anything but shouldn't be non-empty (but we'll handle it if it is)
     # $rowRef->[8] - DOB - can be anything 
-    # $rowRef->[9] - time|distance - can be anything 
+    # $rowRef->[9] - time|distance - can be anything. If time, must be of the form 'hh:mm:ss[.tt]'.
 #   $rowNum - row number of this row in the source file
 #   $numSwims - the number of this swim for this category.  Swims are numbered starting at 1 throughout the
 #		year. E.g. berryessa 1 mile cat 1 swim might be #4, 
@@ -59,7 +69,7 @@ my $lastRecordedPlaceSeen;			# The recorded place of the previous row seen, 0 if
 sub StoreResult {
     my ($rowRef, $rowNum, $numSwims, $category, $raceFileName, $eventId) = @_;
    
-    my $debugLastName = "xxxxx";        # used to do isolated debugging of this function
+    my $debugLastName = "xxxxxx";        # used to do isolated debugging of this function
     
     my $genAgeGrpRace = $rowRef->[0]  . "/" . $numSwims . "/" . $category;		# $genAgeGrpRace uniquely
     	#identifies a race (gender/age group + swim number + category)
@@ -70,25 +80,39 @@ sub StoreResult {
     my $regNum = $rowRef->[7];		# regnum for swimmer on entry form
     my $dateOfBirth = $rowRef->[8];		# mm/dd/yyyy
     my $timeOrDistance = $rowRef->[9];
-    
+# assume $timeOrDistance is a time! fix this!
+#xxx - if timeordistance has a ":" it's a time.  otherwise it's a distance.
+	# is this a timed event (e.g. 200 free), or a distance event (e.g. 1 hour swim)?
+	my $eventType = "timed";
+	if( index( $timeOrDistance, ":" ) == -1 ) {
+		$eventType = "distance";
+	}
+	my $timeInHundredths = 0;
+	if( $eventType eq "timed" ) {
+		$timeInHundredths = PMSUtil::GenerateCanonicalDurationForDB_v2( $timeOrDistance, 0, $rowRef, $rowNum, "" );
+	}
+
     my $recordedPlace = $rowRef->[1];
     my $line = PMSUtil::ConvertArrayIntoString( $rowRef );
 	my $sth, my $rv;
 	my $foundSynomousPerson;
 
-	# we track the "recordedPlace" (the place of a row found in the results) and the "computedPlace"
-	# (the real place for the next row representing a PMS swimmer)
-    my $computedPlace;
+	# we track the "recordedPlace" (above $rowRef->[1] = the place of a row found in the results) and the 
+	# "computedResultsPlace" (what we THINK the next place in the results should be). They should be
+	# the same but sometimes the results have an error and they won't be. This is how we find that error.
+	my $computedResultsPlace;
 	# is this the first time we've seen a result in this gender/age group + swim number + category?
-	if( !defined( $nextExpectedPlace{$genAgeGrpRace} ) ) {
-        # this is the first swimmer in this race/gender/age group
-        $nextExpectedPlace{$genAgeGrpRace} = 1;
+	if( !defined( $nextExpectedResultPlace{$genAgeGrpRace} ) ) {
+        # this is the first swimmer in this race/gender/age group -  initialize:
+        $nextExpectedResultPlace{$genAgeGrpRace} = 1;
         $numNonPMSSwimmersInThisGroup = 0;
         $numTiesSeenInResults = 0;
         $lastRecordedPlaceSeen = 0;
+        $lastRecordedTimeSeen = 0;		# not used if $eventType == "distance"
+        $computedPMSPlace = 1;
 	}
 #	PMSLogging::PrintLog( "", "", "PMSStoreSingleRow.pm: StoreResult(): rowNum=$rowNum, genAgeGrpRace='$genAgeGrpRace', " .
-#		"nextExpectedPlace='$nextExpectedPlace{$genAgeGrpRace}'\n" .
+#		"nextExpectedResultPlace='$nextExpectedResultPlace{$genAgeGrpRace}'\n" .
 #		"    row='$line'" );
 
 	# get ready to use our database:
@@ -167,85 +191,143 @@ sub StoreResult {
 	# we're ready to store this swimmer into our results database. Everyone gets put into the DB, 
 	# even if they are not a PMS swimmer.
     if( ($lastName =~ m/$debugLastName/i)  ) {
-    	print "PMSStoreSingleRow::StoreResult(): before InsertSwimmerIntoMySqlDB: regnum=$regNum\n";
+    	print "PMSStoreSingleRow::StoreResult(): before InsertSwimmerIntoMySqlDB: regnum=$regNum, team='$team'\n";
     }
-	(my $swimmerId, my $correctedRegNum, my $isPMS) = PMS_MySqlSupport::InsertSwimmerIntoMySqlDB( 
+	(my $swimmerId, my $correctedRegNum, my $isPMS, my $correctedTeam) = PMS_MySqlSupport::InsertSwimmerIntoMySqlDB( 
 		$dateOfBirth, $regNum, $firstName, $middleInitial,
 		$lastName, $gender, $age, $ageGrp, $genAgeGrpRace, $raceFileName, $team, $eventId,
 		$recordedPlace, $rowNum );
 
+	# 12jun2024: we need to remember this swimmer's team IF the results show no team but we actually know the team from the
+	# USMS database (which we query in InsertSwimmerIntoMySqlDB() above.) We want this for generated human readable results,
+	# so even though this is tacky we're going to update the passed $rowRef[] with the correct team if necessary:
+	if( $team eq "" ) {
+		$rowRef->[5] = $correctedTeam;
+		$team = $rowRef->[5];
+	}
     if( ($lastName =~ m/$debugLastName/i)  ) {
-    	print "PMSStoreSingleRow::StoreResult(): after InsertSwimmerIntoMySqlDB: swimmerid=$swimmerId, correctedRegNum=$correctedRegNum, ispms=$isPMS\n";
+    	print "PMSStoreSingleRow::StoreResult(): after InsertSwimmerIntoMySqlDB: swimmerid=$swimmerId, correctedRegNum=$correctedRegNum, " .
+    		"ispms=$isPMS, team='$team'\n";
     }
 
-
-if(0) {
-# remove this and act as though they are a pms swimmer, allowing us to catch and CORRECTLY log incorrect place.   17OCT2023
-	# if this is a non-pms swimmer we record the splash and then we're done.
-	if( !$isPMS ) {
-	    PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, -10,
-	    	$rowRef, $rowNum );
-	    $numNonPMSSwimmersInThisGroup++;
-#		# We log this if the reg # implies that this swimmer is a PMS swimmer:
-#		if( substr( $regNum, 0, 2 ) eq "38" ) {
-#			PMSLogging::DumpNote( $line, $rowNum, "PMSStoreSingleRow::StoreResult(): Found a non-PMS swimmer " .
-#				"(internal swimmer id: $swimmerId)\n    in file " .
-#				"$raceFileName", 0 );
-#		}
-	    return;
-	}
-}
-			  
-	# THE FOLLOWING COMMENT IS NO LONGER TRUE!  17OCT2023
-	# We get here only if they are a PMS swimmer and have a valid reg number
-
-	# This is a bit tricky:  the results will sometimes list the results in the incorrect order (2nd place
-	# listed before 1st place.)  Or perhaps there is a tie so there will be two 1st places and no 2nd place
-	# and a 3rd place.  Or two 1st places and a 2nd place!  Or two 1st places with different times!
-	# Or a non-pms swimmer finished faster than this swimmer, so this swimmer (and those following) should
-	# slide up in the results.
-	# We're going to catch all of these cases and
+	# This is a bit tricky:  the results will sometimes:
+	# - list the results in the incorrect order (2nd place listed before 1st place.)  THIS IS AN ERROR
+	# - Or perhaps there is a tie so there will be two 1st places and no 2nd place.  This is OK
+	# - Or two 1st places and a 2nd place!  THIS IS AN ERROR
+	# - Or two 1st places with different times/distances! THIS IS AN ERROR
+	# - Or a non-pms swimmer finished faster than this swimmer, so this swimmer (and those following) should
+	# 	slide up in the results. This is OK
+	# We're going to catch all of these cases EXCEPT the non-PMS case (that's handled later below) and
 	# do our best, reporting all these situations so we can confirm that they are right.
 	
 	# We will keep track of the place we expect the next swimmer to take (sometimes we're wrong which
 	# is OK [e.g. there was a valid tie] and sometimes we're wrong due to an error in the results.)
 
     # we will compute the place ourselves, temporarily ignoring the place in the results
-    $computedPlace = $nextExpectedPlace{$genAgeGrpRace};
-    $nextExpectedPlace{$genAgeGrpRace}++;
+    $computedResultsPlace = $nextExpectedResultPlace{$genAgeGrpRace};
+    if( $computedResultsPlace > 0 ) {
+    	# so far all the places are in order, so we're going to keep checking for this gender/age group.
+    	# Compute the next place for the swimmer following the swimmer we're processing now:
+    	$nextExpectedResultPlace{$genAgeGrpRace}++;
     
-    if( $lastRecordedPlaceSeen == $recordedPlace ) {
-		# there was a tie in the results
-		$computedPlace = $computedPlace - 1 - $numTiesSeenInResults;
-		PMSLogging::DumpNote( $line, $rowNum, "PMSStoreSingleRow::StoreResult(): " .
-			"Found a tie (swimmer $swimmerId) in file $raceFileName." . 
-			"computedPlace=$computedPlace, lastRecordedPlaceSeen=$lastRecordedPlaceSeen", 1 );
-		$numTiesSeenInResults++;
-#    } elsif( $recordedPlace == $computedPlace+$numNonPMSSwimmersInThisGroup ) {		18oct2023
-    } elsif( $recordedPlace == $computedPlace ) {
-    	# the place we see on this row is what we expect
-    	$numTiesSeenInResults = 0;
-    } else {
-    	# something not right...
-		PMSLogging::DumpFatalError( $line, $rowNum, "Found a major discrepancy between recordedPlace (" .
-			$recordedPlace . ") and computedPlace ($computedPlace) for $firstName $lastName.\n" .
-			"  genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
-			"    numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
-			"numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
-			"    lastRecordedPlaceSeen='$lastRecordedPlaceSeen', Swimmer's internal ID=$swimmerId,\n" .
-			"    filename='$raceFileName'.\n" .
-			"    {PMSStoreSingleRow.pm::StoreResult()}", 
-			1 );
-    	$numTiesSeenInResults = 0;
-    }
-    $lastRecordedPlaceSeen = $recordedPlace;
+    	# is the place of the previous swimmer seen the same as the place for the swimmer we're processing now?
+		if( $lastRecordedPlaceSeen == $recordedPlace ) {
+			# YES!  That means that there was a tie in the results.
+			# Since there could be multiple ties in a row we need to consider that when computing what we think
+			# the current place should be in the results:
+			$computedResultsPlace = $computedResultsPlace - 1 - $numTiesSeenInResults;
+			PMSLogging::DumpNote( $line, $rowNum, "PMSStoreSingleRow::StoreResult(): " .
+				"Found a tie (swimmer $swimmerId) in file $raceFileName." . 
+				"computedResultsPlace=$computedResultsPlace, lastRecordedPlaceSeen=$lastRecordedPlaceSeen", 1 );
+			$numTiesSeenInResults++;
+		} elsif( $recordedPlace == $computedResultsPlace ) {
+			# the place we see on this row is what we expect
+			$numTiesSeenInResults = 0;
+		} else {
+			# something not right...
+			PMSLogging::DumpFatalError( $line, $rowNum, "Found a major discrepancy between recordedPlace (" .
+				$recordedPlace . ") and computedResultsPlace ($computedResultsPlace) for $firstName $lastName.\n" .
+				"  genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
+				"    numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+				"    numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
+				"    lastRecordedPlaceSeen='$lastRecordedPlaceSeen', Swimmer's internal ID=$swimmerId,\n" .
+				"    filename='$raceFileName'.\n" .
+				"    {PMSStoreSingleRow.pm::StoreResult()}", 
+				1 );
+			$numTiesSeenInResults = 0;
+			# 13jun2024: don't continue checking places for the remaining swims in this gender/age group. We're already
+			# off so all the following swimmers will be off, too (most likely...)
+			$nextExpectedResultPlace{$genAgeGrpRace} = -1;
+		}
+		$lastRecordedPlaceSeen = $recordedPlace;
+	} # end of if( $computedResultsPlace > 0...
     
-    # store this swimmer's swim in the DB
+    if( $eventType eq "timed" ) {
+		# now we're going to look for a reasonable swim time, in the sense that it must be slower than the previous
+		# swimmer's time, or the same if it was a tie.  Del Valle 10k, cat1 2024.
+		if( $numTiesSeenInResults ) {
+			# this swimmer tied the previous swimmer.
+			if( $timeInHundredths != $lastRecordedTimeSeen ) {
+				my $currentTime = PMSUtil::GenerateDurationStringFromHundredths( $timeInHundredths );
+				my $previousTime = PMSUtil::GenerateDurationStringFromHundredths( $lastRecordedTimeSeen );
+				PMSLogging::DumpFatalError( $line, $rowNum, "Found a major discrepancy with swimmer times: the results\n" .
+					"    show that this swimmer and the previous swimmer tied\n" .
+					"    (placed the same), but their times are DIFFERENT! The previous swimmer's time was $previousTime " .
+					"    and this swimmer's time was $currentTime.\n" .
+					"	genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
+					"	numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+					"	numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
+					"	filename='$raceFileName'.\n" .
+					"	{PMSStoreSingleRow.pm::StoreResult()}", 
+					1 );
+			}
+		} else {
+			# According to the results this swimmer didn't tie the previous Swimmer, but that might not be right based on
+			# the swim durations!
+			# is the time in the results < the time of previous swimmer?
+			if( $timeInHundredths < $lastRecordedTimeSeen ) {
+				# YES!
+				# this swimmer placed slower than the previous swimmer, but their time is faster!
+				my $currentTime = PMSUtil::GenerateDurationStringFromHundredths( $timeInHundredths );
+				my $previousTime = PMSUtil::GenerateDurationStringFromHundredths( $lastRecordedTimeSeen );
+				PMSLogging::DumpFatalError( $line, $rowNum, "Found a major discrepancy with swimmer times: the results\n" .
+					"    show that this swimmer's time ($currentTime) was FASTER than the\n" .
+					"    previous swimmer's time ($previousTime), but the faster swimmer was placed slower!\n" .
+					"	genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
+					"	numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+					"	numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
+					"	filename='$raceFileName'.\n" .
+					"	{PMSStoreSingleRow.pm::StoreResult()}", 
+					1 );
+			} elsif( $timeInHundredths == $lastRecordedTimeSeen ) {
+				# the time in the results = the time of previous swimmer, but they were not placed as ties!
+				my $currentTime = PMSUtil::GenerateDurationStringFromHundredths( $timeInHundredths );
+				my $previousTime = PMSUtil::GenerateDurationStringFromHundredths( $lastRecordedTimeSeen );
+				PMSLogging::DumpFatalError( $line, $rowNum, "Found a major discrepancy with swimmer times: The previous\n" .
+					"    swimmer's time ($previousTime) and this swimmer's time ($currentTime)\n" .
+					"    ARE THE SAME, yet they are not placed in a tie.\n" .
+					"	genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
+					"	numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+					"	numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
+					"	filename='$raceFileName'.\n" .
+					"	{PMSStoreSingleRow.pm::StoreResult()}", 
+					1 );    	
+			}
+	
+		}
+		# done checking for a reasonable swim time
+		$lastRecordedTimeSeen = $timeInHundredths;
+	} # end of if( $eventType eq "timed"....
+    
+    # Next, handle the case where this swimmer swam slower than 1 or more non-PMS swimmers, thus we 
+    # need to adjust their place in the Swim table to slide them up in place, logically removing
+    # the non-PMS swimmers.
+    # NOTE: in the distance case we only see PMS swimmers here.
 	if( $isPMS ) {
-		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, $computedPlace,
+		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, $computedPMSPlace,
 			$rowRef, $rowNum );
+		$computedPMSPlace++;
 	} else {
-		# 17oct2023
 		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, -10,
 			$rowRef, $rowNum );
 	    $numNonPMSSwimmersInThisGroup++;

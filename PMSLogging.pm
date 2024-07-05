@@ -96,19 +96,20 @@ sub PrintLog {
 		} else {
 			$detail = ": [line #$lineNum, '$line']";
 		}
-		 
-		# if we have detail to show then show it before the first \n in the $errStr, or at the
-		# end of the $errStr if there is no \n:
+
+		# if we have detail to show then show it after the first : in the $errStr, or at the
+		# end of the $errStr if there is no :
 		my $ind;
 		if( $detail ) {
-			if( ($ind = index( $errStr, "\n" )) == -1 ) {
-				# no newline - append on end
+			if( ($ind = index( $errStr, ":" )) == -1 ) {
+				# no : - append on end
 				$totalErr = $errStr . "    " . $detail;
 			} else {
-				# insert detail just before first \n
-				$totalErr =~ s/\n/    $detail\n/;
+				# insert detail just after first :
+				$totalErr =~ s/:/$detail:\n   /;
 			}
 		}		
+
 		
 	    $totalErr .= "\n";
 	    printLog( $totalErr );

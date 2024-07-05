@@ -521,7 +521,10 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 					"swimmerId='" . $resultHash->{'SwimmerId'} . "'", 1 );
 			}
 			# this swimmer is already in our DB with a regnum - this means that this swimmer
-			# is a valid PMS swimmer and we have everything we need to know in our db
+			# is a valid PMS swimmer and we have everything we need to know in our db.
+			# (NOTE: since we found their reg num in the Swimmer table then they must be a PMS swimmer,
+			# because if you look at the schema of this table you'll see that ONLY PMS reg numbers are
+			# stored in this field.)
 			# - get their db id
 			$resultSwimmerId = $resultHash->{'SwimmerId'};
 			$age2 = $resultHash->{'Age2'};
@@ -639,7 +642,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 						"'$firstName $lastName'." .
 						"    The 'dob='$correctedDOB', entry age='$age', but computed age based on dob='$computedAge'.\n" .
 						"    This swimmer will still get their points, BUT IT MIGHT BE IN THE WRONG AGE GROUP!\n" .
-						"    {PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 1);
+						"	{PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 1);
 				} else {
 					# this error doesn't affect the swimmer's age group - report it as an ERROR anyway!
 					if( ($SwimmerAgeWarningAlreadyReported == 0) || 1 ) {
@@ -649,7 +652,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 							"'$firstName $lastName'\n" .
 							"    The 'dob='$correctedDOB', entry age='$age', but computed age based on " .
 							"dob='$computedAge'.\n    This swimmer will still get their points.\n" .
-							"    {PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 0);
+							"	{PMS_MySqlSupport::InsertSwimmerIntoMySqlDB()}", 0);
 					}
 				}
 				# we will ignore this error and keep going...what else can we do?
@@ -768,7 +771,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 #		"return swimmerId: '$resultSwimmerId', regNum: '$regNum', isPMS: '$isPMS', " .
 #		"registeredTeam: '$registeredTeam'", 1 );
 
-	return ($resultSwimmerId, $regNum, $isPMS);
+	return ($resultSwimmerId, $regNum, $isPMS, $registeredTeam);
 } # end of InsertSwimmerIntoMySqlDB()
 
 
@@ -1209,6 +1212,8 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 	$USMSSwimmerId =~ s/^.*-//;
 	my $yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
 
+	# for consistency:
+	$gender = PMSUtil::GenerateCanonicalGender( "PMS_MySqlSupport::LookUpSwimmerInRSIDN()", "", $gender );
 	# make it easier to log the middle initial whether missing or not:
 	my $printableMiddleInitial = " ";
 	$printableMiddleInitial = " '$middleInitial' " if( $middleInitial ne "" );
@@ -1226,6 +1231,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 	my @RSIDNTeam = ();
 	my @RSIDNGender = ();
 	my @RSIDNBirthDate = ();
+	my @RSIDNAge = ();
 	my @RSIDNId = ();
 	my $logRSIDN = "";
 	
@@ -1293,8 +1299,9 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 			$RSIDNUSMSSwimmerID[$count] = $resultHash->{'USMSSwimmerId'};
 			$RSIDNRegNum[$count] = $resultHash->{'RegNum'};
 			$RSIDNBirthDate[$count] = $resultHash->{'DateOfBirth'};
+			$RSIDNAge[$count] = PMSUtil::AgeAtEndOfYear( $resultHash->{'DateOfBirth'} );
 			$RSIDNTeam[$count] = $resultHash->{'RegisteredTeamInitialsStr'};
-			$RSIDNGender[$count] = $resultHash->{'Gender'};
+			$RSIDNGender[$count] = PMSUtil::GenerateCanonicalGender( "PMS_MySqlSupport::LookUpSwimmerInRSIDN()", "", $resultHash->{'Gender'} );
 			$RSIDNId[$count] = $resultHash->{'RSIDNId'};
 			# make it easier to log the middle initial whether missing or not:
 			my $RSIDNprintableMiddleInitial = " ";
@@ -1302,7 +1309,8 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 			$logRSIDN .= "\t# <b>PAC database:</b> '$firstName'$RSIDNprintableMiddleInitial" .
 				"'$lastName': regNum=$RSIDNRegNum[$count], " .
 				"(USMS SwimmerId=$RSIDNUSMSSwimmerID[$count]), " .
-				"birthDate=$RSIDNBirthDate[$count], gender=$RSIDNGender[$count], team=$RSIDNTeam[$count].\n";
+				"birthDate=$RSIDNBirthDate[$count], gender=$RSIDNGender[$count], team=$RSIDNTeam[$count], " .
+				"age=$RSIDNAge[$count].\n";
 			if( $USMSSwimmerId eq $RSIDNUSMSSwimmerID[$count] ) {
 				# cases 1,4)  found swimmer's name and regnum in RSIDN - they are a pms swimmer
 				$resultRegNum = $RSIDNRegNum[$count];
@@ -1340,15 +1348,17 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 				$RSIDNUSMSSwimmerID[0] = $USMSSwimmerId;
 				$RSIDNRegNum[0] = $resultHash->{'RegNum'};
 				$RSIDNBirthDate[0] = $resultHash->{'DateOfBirth'};
+				$RSIDNAge[0] = PMSUtil::AgeAtEndOfYear( $resultHash->{'DateOfBirth'} );
 				$RSIDNTeam[0] = $resultHash->{'RegisteredTeamInitialsStr'};
-				$RSIDNGender[0] = $resultHash->{'Gender'};
+				$RSIDNGender[0] = PMSUtil::GenerateCanonicalGender( "PMS_MySqlSupport::LookUpSwimmerInRSIDN()#2", "", $resultHash->{'Gender'} );
 				# make it easier to log the middle initial whether missing or not:
 				my $RSIDNprintableMiddleInitial = " ";
 				$RSIDNprintableMiddleInitial = " '$RSIDNMiddleInitial[0]' " if( $RSIDNMiddleInitial[0] ne "" );
 				$logRSIDN = "\t# <b>PAC database:</b> '$RSIDNFirstName[0]'$RSIDNprintableMiddleInitial" .
 					"'$RSIDNLastName[0]': regNum=$RSIDNRegNum[0], " .
 					"(USMS SwimmerId=$RSIDNUSMSSwimmerID[0]), " .
-					"birthDate=$RSIDNBirthDate[0], gender=$RSIDNGender[0], team=$RSIDNTeam[0].\n";
+					"birthDate=$RSIDNBirthDate[0], gender=$RSIDNGender[0], team=$RSIDNTeam[0], " .
+					"age=$RSIDNAge[0].\n";
 				my $fuzzyScore;
 				if( ($fuzzyScore = PMSUtil::NamesCompareOK2( $firstName, $middleInitial, $lastName, 
 					$RSIDNFirstName[0], $RSIDNMiddleInitial[0], $RSIDNLastName[0] )) == 0 ) {
@@ -1907,6 +1917,7 @@ sub GetListOfResults( $$$ ) {
 		"WHERE $pointsToGet >= 0 " .
 		"AND AgeGroup = '$ageGroup' " .
 		"AND Gender = '$gender' " .
+		"AND isPMS = 1 " .						# added 30jun2024 - we only want PMS results
 		"ORDER BY $pointsToGet DESC", "");
 	return $sth;
 

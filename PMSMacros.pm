@@ -66,6 +66,8 @@ my @categories;						# $categories[n] = %catHash()
 #				in 2019 11 category[1] swimmers advanced to category[2]
 #				in 2019 5 swimmers advanced to category[1]
 #			- $categories[1]{2019-swimmers} is 79 (85 - 11 + 5)
+#	$catHash{"patch"} - the name of the image file holding an image of the patch for this category,
+#		e.g. "trout.jpg" or "Manatee.png"
 	
 
 
@@ -129,6 +131,7 @@ sub GetProperties( $$$ ) {
 	my $lineNum = 0;
 	my $processingCalendar = 0;		# set to 1 when processing a ">calendar....>endcalendar" block
 	my $processingCategories = 0;	# set to 1 when processing a ">categories...>endcategories" block
+	my $processingSkip = 0;			# set to 1 when processing a ">skip...>endskip" block
 	open( $propFileFD, "< $propFileName" ) || die( "Can't open $propFileName: $!" );
 	while( my $line = <$propFileFD> ) {
 		my $value = "";
@@ -136,6 +139,15 @@ sub GetProperties( $$$ ) {
 		chomp( $line );
 		$line =~ s/\s*#.*$//;		# remove optional spaces followed by comment
 		$line =~ s/^\s+|\s+$//g;			# remove leading and trailing space
+
+		# if we're processing a >skip block then all we want to find is an >endskip ignoring
+		# everything else.
+		if( $processingSkip ) {
+			if( $line =~ m/^>endskip$/ ) {
+				$processingSkip = 0;
+			}
+			next;
+		}
 
 		# handle a continuation line
 		while( $line =~ m/\\$/ ) {
@@ -157,13 +169,15 @@ sub GetProperties( $$$ ) {
 		}
 
 		next if( $line eq "" );		# if we now have an empty line then get next line
-#print "GetProperties(): [$propFileName]: line='$line'\n";
 		my $macroName = $line;
 		$macroName =~ s/\s.*$//;	# remove all chars from first space char until eol
 		if( ($macroName =~ m/^>/) || $processingCalendar || $processingCategories ) {
 			# found a non macro definition (synonym, etc of the form ">....")
 			$macroName = lc( $macroName );
-			if( $macroName eq ">calendar" ) {
+			if( $macroName eq ">skip" ) {
+				$processingSkip = 1;
+				next;
+			} elsif( $macroName eq ">calendar" ) {
 				$processingCalendar = 1;
 				next;
 			} elsif( $macroName eq ">endcalendar" ) {
@@ -180,7 +194,6 @@ sub GetProperties( $$$ ) {
 				$processingCategories = 0;
 				next;
 			} elsif( $processingCategories ) {
-#print "GetProperties(): got a category\n";
 				ProcessCategoriesLine( $line );
 				next;
 			} elsif( $macroName eq ">include" ) {
@@ -555,19 +568,28 @@ sub GetCalendarRef() {
 #
 # PASSED:
 #	$line - the line to process. Of the form:
-#		Trout		->		5
-#
+#			Trout		->		5	->	patch.jpg
+#		where:
+#			1st field ("Trout" above) is the category name
+#			2nd field ("5" above) is the minimum number of swims for this category
+#			3rd field ("patch") is the file name of the image of the patch for this category.
+#				Note that this field is optional.
 # RETURNED:
 #	n/a
+#
+# NOTES:
+#	Used by OWChallenge
 #
 my $categoryOrder = -1;
 sub ProcessCategoriesLine( $ ) {
 	my $line = $_[0];
-	my ($name, $count) = split( /\s*->\s*/, $line );
+	my ($name, $count, $patch) = split( /\s*->\s*/, $line );
+	$patch = "" if( ! defined $patch );
 	$categoryOrder++;
 	my %catHash = (
 		'name'	=> $name,
-		'minCount'	=>	$count
+		'minCount'	=>	$count,
+		'patch'	=>	$patch
 		# we compute maxCount later
 	);
 	$categories[$categoryOrder] = \%catHash;

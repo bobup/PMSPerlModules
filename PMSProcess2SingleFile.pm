@@ -81,8 +81,11 @@ sub ProcessRace( $$$$$$ ) {
     $ext =~ s/^.*\.//;
     $ext = lc( $ext );
 
-    # begin our own generation of human readable results:
-	my $hrResults = BeginGenHTMLRaceResults( $raceFileName, $calendarRef );
+    # begin our own generation of human readable results if we're not processing a single file:
+	my $hrResults = "";
+    if( !PMSStruct::GetMacrosRef()->{"SingleFile"} ) {
+		$hrResults = BeginGenHTMLRaceResults( $raceFileName, $calendarRef );
+	}
     
     # Store the detauls that we know about this event into our DB:
     my $distance = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Distance" );
@@ -204,7 +207,9 @@ sub ProcessRace( $$$$$$ ) {
 	PMS_MySqlSupport::UpdateThisEvent( $eventId, $swimsInThisRace[$category], $dqsInThisRace[$category] );
 
 	# we're finished generating the human readable results:
-	EndGenHTMLRaceResults();
+    if( !PMSStruct::GetMacrosRef()->{"SingleFile"} ) {
+		EndGenHTMLRaceResults();
+	}
 	
     return ($swimsInThisRace,$dqsInThisRace);
         
@@ -501,7 +506,9 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
 	        $raceFileName, $eventId );
 	    $swimsInThisRace[$category]++;
 		# generate a human readable result row for our human readable results html file:
-		GenHTMLRaceResultRow( $rowRef, $category );
+		if( !PMSStruct::GetMacrosRef()->{"SingleFile"} ) {
+			GenHTMLRaceResultRow( $rowRef, $category );
+		}
     } else {
     	$ignoredInThisRace[$category]++;
     }
@@ -708,13 +715,12 @@ sub BeginGenHTMLRaceResults( $$ ) {
 		PMSStruct::GetMacrosRef()->{"catmeaning"} = "Wetsuit";
 	}
 	PMSStruct::GetMacrosRef()->{"Link"} = $link;
-	# compute a background picture
-	my $backPicture = ComputeBackgroundImage( $raceFileName, $calendarRef );
-	PMSStruct::GetMacrosRef()->{"BackgroundPicture"} = $backPicture;
 
 	###############################################################################
 	########################## AGE GROUP RESULTS ##################################
 	###############################################################################
+	# compute a background picture
+	my $backPictureAG = ComputeBackgroundImage( $raceFileName, $calendarRef );
 	# get the full path name of the template file we're going to use:
 	my $templateGenResRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
 	my $templateGenResHeadPathName = $templateGenResRoot . "ReadableResultHead.html";
@@ -726,7 +732,7 @@ sub BeginGenHTMLRaceResults( $$ ) {
 	#	replace '/' with dash
 	$genSimpleFileName =~ s;/+;-;g;
 	# remember this file name so we can link to it in the OW points page
-	PMSLogging::DumpNote( "", "", "Begin generation of human readable results: file generated: '$genSimpleFileName'", 1);
+#	PMSLogging::DumpNote( "", "", "Begin generation of human readable results: file generated: '$genSimpleFileName'", 1);
 	my $generatedFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genSimpleFileName";
 	open( $generatedAGFileHandle, "> $generatedFileName" ) || die( "PMSProcess2SingleFile::BeginGenHTMLRaceResults(): " .
 		"  Can't open/create $generatedFileName: $!" );
@@ -734,6 +740,9 @@ sub BeginGenHTMLRaceResults( $$ ) {
 	###############################################################################
 	########################## OVERALL RESULTS ####################################
 	###############################################################################
+	# compute a background picture
+	my $backPictureOR = ComputeBackgroundImage( $raceFileName, $calendarRef );
+	PMSStruct::GetMacrosRef()->{"BackgroundPicture"} = $backPictureOR;
 	# get the full path name of the template file we're going to use:
 	my $templateGenORRoot = PMSStruct::GetMacrosRef()->{"templateRootRoot"} . "TemplatesGenRes/";
 	my $templateGenORHeadPathName = $templateGenResRoot . "OverallResultHead.html";
@@ -745,7 +754,7 @@ sub BeginGenHTMLRaceResults( $$ ) {
 	#	replace '/' with dash
 	$genORSimpleFileName =~ s;/+;-;g;
 	# remember this file name so we can link to it in the OW points page
-	PMSLogging::DumpNote( "", "", "Begin generation of overall results: file generated: '$genORSimpleFileName'", 1);
+#	PMSLogging::DumpNote( "", "", "Begin generation of overall results: file generated: '$genORSimpleFileName'", 1);
 	my $generatedORFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genORSimpleFileName";
 	open( $generatedORFileHandle, "> $generatedORFileName" ) || die( "PMSProcess2SingleFile::BeginGenHTMLRaceResults(): " .
 		"  Can't open/create $generatedORFileName: $!" );
@@ -755,11 +764,13 @@ sub BeginGenHTMLRaceResults( $$ ) {
 	###############################################################################
 	########################## AGE GROUP RESULTS ##################################
 	###############################################################################
+	PMSStruct::GetMacrosRef()->{"BackgroundPicture"} = $backPictureAG;
 	PMSStruct::GetMacrosRef()->{"ORFileName"} = $genORSimpleFileName;
 	PMSTemplate::ProcessHTMLTemplate( $templateGenResHeadPathName, $generatedAGFileHandle );
 
 	my $result = PMSStruct::GetMacrosRef()->{"hrResultsSimpleDir"} . $genSimpleFileName;
-	print "BeginGenHTMLRaceResults(): backPicture='$backPicture', return '$result'\n";
+	#print "BeginGenHTMLRaceResults(): backPictureAG='$backPictureAG', backPictureOR='$backPictureOR', " .
+	#	"return '$result'\n";
 	return $result;
 	
 } # end of BeginGenHTMLRaceResults()
@@ -789,9 +800,9 @@ my $colorClass = "";			# will be used to color some rows
 my $numberWithThisGenderAge = "";
 
 # CONSTRUCTING OVERALL RESULTS:
-# %overall{time-id} = details   -  id is a unique id (numeric) used to identify this swimmer
-#		in this event.  The time is the time of a swim, in hundredths of a second,
-#	and details is the following string:
+# %overall{id} = timeInCS   -  id is a unique id (numeric) used to identify this swimmer
+#		in this event. The timeInCS is the time of a swim, in hundredths of a second
+# %overallDetails{id} = TheDetails - id is the same as above. TheDetails is the following string:
 #		Name:::age:::gender:age group:::club:::time:::humanTime
 #	where:
 #		Name - is the name of the swimmer:  First Last
@@ -801,6 +812,7 @@ my $numberWithThisGenderAge = "";
 #		time  - the time in hundredths of a second
 #		humanTime - the time in the form 1:03:33.09 (1 hour, 3 minutes, 33 seconds, 9 hundredths
 my %overall = ();
+my %overallDetails = ();
 my $overallId = 0;
 
 sub GenHTMLRaceResultRow( $$ ) {
@@ -865,6 +877,9 @@ sub GenHTMLRaceResultRow( $$ ) {
 	PMSStruct::GetMacrosRef()->{"Place"} = $rowRef->[1];
 	PMSStruct::GetMacrosRef()->{"Name"} = $rowRef->[3] . " " . $rowRef->[2];
 	PMSStruct::GetMacrosRef()->{"Age"} = $rowRef->[6];
+	
+	
+############################club
 	PMSStruct::GetMacrosRef()->{"Club"} = $rowRef->[5];
 	PMSStruct::GetMacrosRef()->{"Time"} = $rowRef->[9];
 	# how do we color this row?
@@ -885,7 +900,8 @@ sub GenHTMLRaceResultRow( $$ ) {
 	my $timeInCS = PMSUtil::GenerateCanonicalDurationForDB_v2( PMSStruct::GetMacrosRef()->{"Time"},
 		0, "", "", "called by GenHTMLRaceResultRow()" );
 	$overallId++;
-	$overall{$timeInCS-$overallId} = PMSStruct::GetMacrosRef()->{"Name"} . ":::" .
+	$overall{$overallId} = $timeInCS;
+	$overallDetails{$overallId} = PMSStruct::GetMacrosRef()->{"Name"} . ":::" .
 		PMSStruct::GetMacrosRef()->{"Age"} . ":::" .
 		$rowRef->[0] . ":::" .
 		PMSStruct::GetMacrosRef()->{"Club"} . ":::" .
@@ -893,6 +909,20 @@ sub GenHTMLRaceResultRow( $$ ) {
 		PMSStruct::GetMacrosRef()->{"Time"};
 		
 } # end of GenHTMLRaceResultRow()
+
+
+
+#
+# AscendingTimeInCS - used to sort the %overall hash for overall results display
+#	This function uses the Perl sort facility that allows traversing a hash in a sort
+#	order of the VALUE of the hash, not the key.  Used like this:
+#			foreach my $key( sort AscendingTimeInCS( keys %overall ) ) {...
+#
+sub AscendingTimeInCS {
+	$overall{$a} <=> $overall{$b};
+} # end of AscendingTimeInCS()
+
+
 
 
 
@@ -933,8 +963,8 @@ sub EndGenHTMLRaceResults() {
 	# pass through our list of swimmers, fastest to slowest, and keep track of every
 	# swimmer's overall place
 	my $rowColor = 0;
-	foreach my $key( sort keys %overall ) {
-		my $detailString = $overall{$key};			# details of this swimmer
+	foreach my $key( sort AscendingTimeInCS( keys %overall ) ) {
+		my $detailString = $overallDetails{$key};			# details of this swimmer
 		# This detail string looks like this:
 		#	Name:::Age:::Gender:Age Group:::Club:::Time in CS:::human readable time
 		my @details = split(  ":::", $detailString );
@@ -1006,25 +1036,31 @@ sub ComputeBackgroundImage( $$ ) {
 		PMSStruct::GetMacrosRef()->{"YearBeingProcessed"} . "/$keyword/";
 	# get a list of .jpg and .jpeg files in the above directory:
 	my $dirHandle;
+	my $numBackgrounds = 0;
+	my @listOfFiles;
 	if( opendir( $dirHandle, $fullPath ) ) {
 		# we have a directory of 0 or more background images to be used
-		my @listOfFiles = grep( /(.jpg)|(.jpeg)$/i, readdir $dirHandle ); 
-		my $numBackgrounds = scalar( @listOfFiles );
+		@listOfFiles = grep( /(.jpg)|(.jpeg)$/i, readdir $dirHandle ); 
+		closedir( $dirHandle );
+		$numBackgrounds = scalar( @listOfFiles );
+	}
+	if( $numBackgrounds > 0 ) {
 		my $index = int( rand( $numBackgrounds ) );
 		$result = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"} . "/$keyword/" . $listOfFiles[$index];
-		closedir( $dirHandle );
-		} else {
-			# no specific background  images - use some default one
-			$fullPath = PMSStruct::GetMacrosRef()->{"AppDirName"} . "/Background/misc/";
-			if( opendir( $dirHandle, $fullPath ) ) {
-				# we have a directory of 0 or more background images to be used
-				my @listOfFiles = grep( /(.jpg)|(.jpeg)$/i, readdir $dirHandle ); 
-				my $numBackgrounds = scalar( @listOfFiles );
-				my $index = int( rand( $numBackgrounds ) );
-				$result = "misc/" . $listOfFiles[$index];
-				closedir( $dirHandle );
-			}
+	} else {
+		# no specific background  images - use some default one
+		$fullPath = PMSStruct::GetMacrosRef()->{"AppDirName"} . "/Background/misc/";
+		if( opendir( $dirHandle, $fullPath ) ) {
+			# we have a directory of 0 or more background images to be used
+			my @listOfFiles = grep( /(.jpg)|(.jpeg)$/i, readdir $dirHandle ); 
+			my $numBackgrounds = scalar( @listOfFiles );
+			my $index = int( rand( $numBackgrounds ) );
+			$result = "misc/" . $listOfFiles[$index];
+			closedir( $dirHandle );
 		}
+	}
+#	PMSLogging::DumpNote( "", "", "ComputeBackgroundImage(): return '$result'", 1);
+
 	return $result;
 } # end of ComputeBackgroundImage()
 
