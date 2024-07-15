@@ -27,7 +27,7 @@ my %calendar;						# See ProcessCalendarPropertyLine() for more info.
 #	where
 #		n is the "race number" (aka event number), which is the number of the event
 #			in the property file, starting with 1.
-#		detail is a text string naming a specific detail of the event, e.g. date or category.
+#		detail is a text string naming a specific detail of the event, e.g. Date or CAT.
 #	For each event here is a list of details we have for that event (note that this list
 #	may be different for different versions of the calendar line in the property file. See
 #	ProcessCalendarPropertyLine() for more details.)
