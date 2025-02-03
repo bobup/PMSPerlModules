@@ -211,6 +211,18 @@ sub GetTableList {
 } # end of GetTableList()
 
 
+# return 1 if the passed table exists, 0 otherwise.
+sub DoesTableExist($) {
+	my $tableName = $_[0];
+	my $result = 0;
+	my $dbh = PMS_MySqlSupport::GetMySqlHandle();
+	my $query = "SHOW TABLES LIKE '$tableName'";
+	my($sth, $rv) = PrepareAndExecute( $dbh, $query );
+	if( defined( $sth->fetchrow_array ) ) {
+		$result = 1;
+	}
+	return $result;
+} # end of DoesTableExist()
 
 
 # PrepareAndExecute - prepare and execute a SQL query.  Die with message on error.
@@ -1642,7 +1654,7 @@ sub DistanceForThisEvent( $$$ ) {
 #		numSplashes, numDQs
 #
 # Passed:
-#	 $eventName, $eventFullPath, $EventSimpleFileName, $fileType, $distance, $numSplashes, $numDQs
+#	 $eventName, $eventFullPath, $EventSimpleFileName, $fileType, $cat, $date, $distance, $uniqueID, $hrResults, $numSplashes, $numDQs
 #
 # Returned:
 #	$eventId - the unique event id for this event.

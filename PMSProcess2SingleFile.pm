@@ -574,93 +574,81 @@ sub GenderAgeGrpRow {
     my $fieldFound = 0;
     my $gender = "";
     my $ageGroup = "";
+    my $canonicalAgeGroup = "";
     
+#print "GenderAgeGrpRow(): field='$field'\n";
+
     # look for gender
     if( $field =~ m/(^m)|(^w)|(^f)|^b|^g/ ) {
         $fieldFound = 1;                # found a gender
 	    # get the GENDER since we have one:
 	    if( $field =~ m/female|women|^w|^f|girl|^g/ ) {
 	        $gender = "W";
-	    } elsif( $field =~ m/male|men|m|boy|b/ ) {
+	    } elsif( $field =~ m/male|men|^m|boy|^b/ ) {
 	        $gender = "M";
         }
     } # end of gender
     
     # look for age group
-    if( $field =~ m/\d\d.*\d\d\s*$/ ) {           # must be dd ... dd followed by optional whitespace
+    if( $field =~ m/\d\d.*\d\d\s*$/ ) {           # must be dd ... dd followed by optional whitespace where:
+    				# dd is 2 or more digits, and
+    				# ... is pretty much anything other than digits, or nothing
 	    # get the AGE GROUP since we have one:
-	    $field =~ s/^[^\d]*//;        # remove all leading non-digits (e.g. gender)
-	    $field =~ s/[^\d]*$//;        # remove all trailing non-digits (e.g. spaces)
-	    $ageGroup = $field;	    
-	    if( $ageGroup =~ m/\d/ ) {
-	        # assume $ageGroup contains the age group in some format:
-	        if( $ageGroup =~ m/-/ ) {
-	            # convert xx  -------...--  xx into xx-xx
-	            $ageGroup =~ s/\s//g;
-	            $ageGroup =~ s/--*/-/;      # to handle 25 -- 29 whiskytown 2011
-	        } elsif( $ageGroup =~ m/to/ ) {
-	            # convert xx to xx into xx-xx
-	            $ageGroup =~ s/\s*to\s*/-/g;
-	            # --- 2008 Berryessa
-	        } else {
-	            # convert 2529 into 25-29
-	            $ageGroup =~ s/(^..)/$1-/;
-	            # --- 2008 SC Roughwater
-	        }
-	        # if ageGroup contains a '19', change it to '18' (DelValle used 19-24 instead of 18-24.)
+	    $ageGroup = $field;
+	    $ageGroup =~ s/[^\d]//g;			# remove all non-digits.  This means we now have dddd or dddddd, 
+	    	#where d is a digit.
+	    my( $age1, $age2) = ("", "");
+		# another check - we only expect dd-dd or ddd-ddd.  So make sure that's what we have:
+		if( (length($ageGroup) == 4) || (length($ageGroup) == 6) ) {
+			# now get the two different ages in the age group:
+			$ageGroup =~ m/^(\d\d)(\d\d)$/ || m/^(\d\d\d)(\d\d\d)$/;
+			$age1 = $1;
+			$age2 = $2;
+		}
+		
+	    if( (!defined $age1) || ($age1 eq "") || (!defined $age2) || ($age2 eq "") ) {
+	    	# something wrong with this age group...
+	        PMSLogging::DumpRowError( $rowRef, $rowNum, "GenderAgeGrpRow: Bad agegroup: '$ageGroup', " .
+	        	"age1='$age1', age2='$age2'", 1 );
+	    } else {
+			# finally, construct a canonical age group:
+	    	$canonicalAgeGroup = $age1 . "-" . $age2;
+	        # We now have an age group of the form "ddd-ddd" where 'ddd' is 1 or more digits.	        
+	        # if canonicalAgeGroup contains a '19', change it to '18' (DelValle used 19-24 instead of 18-24.)
 	        # 9oct2010:  but DON'T do this for USA results - in this case it's an error (19 is not a valid age group) but we don't want to change the
 	        # age group so the error message is correct.
-	        if( $ageGroup =~ m/19/ ) {
-	        	PMSLogging::DumpRowWarning( $rowRef, $rowNum, "GenderAgeGrpRow: change age group from 19- to 18-" );
-                $ageGroup =~ s/19/18/;
+	        if( $canonicalAgeGroup =~ m/19/ ) {
+	        	PMSLogging::DumpRowWarning( $rowRef, $rowNum, "GenderAgeGrpRow: change age group from 19- to 18-", 1 );
+                $canonicalAgeGroup =~ s/19/18/;
 	        }
-	        # assume we now have an age group of the form "ddd-ddd" where 'ddd' is 1 or more digits.
-	        # break it apart, remove leading zeros, then put it back.
-	        my $age1 = my $age2 = $ageGroup;
-	        $age1 =~ s/-.*$//;
-	        $age1 =~ s/^0*//;
-	        $age2 =~ s/^.*-//;
-	        $age2 =~ s/^0*//;
-	        $ageGroup = "$age1-$age2";
-	        
 	        # now, make sure we have a legal age group.  If not, try to fix it:
-		    if( PMSUtil::IsValidAgeGroup( $ageGroup ) ) {
+		    if( PMSUtil::IsValidAgeGroup( $canonicalAgeGroup ) ) {
                 $fieldFound += 2;               # found an age group - return 2 or 3 depending on whether or not we found a gender
 		    } elsif( $gender eq "" ) {
 		    	# The passed $field didn't have a gender, thus we think we're looking for an age group.
 		    	# BUT, in this case if it's not a legal age group we're NOT going to try it because it's
-		    	# probably not really an age group.  Example: Whiskeytown, 2017:  The put a date in this 
+		    	# probably not really an age group.  Example: Whiskeytown, 2017:  They put a date in this 
 		    	# field, which excel said was "42988" which we then tried to use.  That's a mistake, and
 		    	# instead we need to ignore such data.
 		    	$fieldFound = 0;
 		    } else {
 		        # we saw a gender, so this is likely to be an age group.  See if we can fix the obvious errors:
-		        my $ageGroupFixed = PMSUtil::FixInvalidAgeGroup( $ageGroup, $age1, $age2 );
-#	        	PMSLogging::DumpFatalRowError( $rowRef, $rowNum, "PMSProcess2SingleFile::GenderAgeGrpRow(): " .
-#	        		"Convert bad ageGroup ('$ageGroup') to this ageGroup: $ageGroupFixed" );
-	        	PMSLogging::DumpFatalRowError( $rowRef, $rowNum, "Found an invalid age group: '$ageGroup' on row " .
+		        my $ageGroupFixed = PMSUtil::FixInvalidAgeGroup( $canonicalAgeGroup, $age1, $age2 );
+	        	PMSLogging::DumpFatalRowError( $rowRef, $rowNum, "Found an invalid age group: '$canonicalAgeGroup' on row " .
 	        		"$rowNum. It's likely that the age group should be fixed to be '$ageGroupFixed' but please " .
 	        		"confirm (and adjust as necessary) and then fix the file." .
-	        		"\n  Details: PMSProcess2SingleFile::GenderAgeGrpRow()" );
-	        	
-	        	
-	        	$ageGroup = $ageGroupFixed;
-		        if( PMSUtil::IsValidAgeGroup( $ageGroup ) ) {
-                    $fieldFound += 2;               # found an age group - return 2 or 3 depending on whether or not we found a gender
-		        } else {
-		        	$ageGroup = "";
-		        }
+	        		"\n  Details: PMSProcess2SingleFile::GenderAgeGrpRow()", 1 );
 		    }
-	    } else {
-	    	$ageGroup = "";
 	    }
     } # end of age group
-    
-    if( $gender eq "" || $ageGroup eq "" ) {
+
+    if( $gender eq "" || $canonicalAgeGroup eq "" ) {
     	$fieldFound = 0;           # illegal values found
     }
-    
-    return ($fieldFound, $gender, $ageGroup);
+
+#print "GenderAgeGrpRow(): return fieldFound '$fieldFound', gender='$gender', age group='$canonicalAgeGroup'\n";
+
+    return ($fieldFound, $gender, $canonicalAgeGroup);
 }  # end of GenderAgeGrpRow
 
 
@@ -726,11 +714,10 @@ sub BeginGenHTMLRaceResults( $$ ) {
 	my $templateGenResHeadPathName = $templateGenResRoot . "ReadableResultHead.html";
 	# get the full path name of the HTML file we're going to generate and open it for writing
 	my $genSimpleFileName = "$eventName-cat$cat-AG.html";
-	# modify the file name:
-	#	replace spaces with underscores
-	$genSimpleFileName =~ s/\s+/_/g;
-	#	replace '/' with dash
-	$genSimpleFileName =~ s;/+;-;g;
+
+	# normalize the file name:
+	$genSimpleFileName = PMSUtil::NormalizeFileName( $genSimpleFileName );
+
 	# remember this file name so we can link to it in the OW points page
 #	PMSLogging::DumpNote( "", "", "Begin generation of human readable results: file generated: '$genSimpleFileName'", 1);
 	my $generatedFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genSimpleFileName";
@@ -748,11 +735,10 @@ sub BeginGenHTMLRaceResults( $$ ) {
 	my $templateGenORHeadPathName = $templateGenResRoot . "OverallResultHead.html";
 	# get the full path name of the HTML file we're going to generate and open it for writing
 	my $genORSimpleFileName = "$eventName-cat$cat-OR.html";
-	# modify the file name:
-	#	replace spaces with underscores
-	$genORSimpleFileName =~ s/\s+/_/g;
-	#	replace '/' with dash
-	$genORSimpleFileName =~ s;/+;-;g;
+	
+	# normalize the file name:
+	$genORSimpleFileName = PMSUtil::NormalizeFileName( $genORSimpleFileName );
+
 	# remember this file name so we can link to it in the OW points page
 #	PMSLogging::DumpNote( "", "", "Begin generation of overall results: file generated: '$genORSimpleFileName'", 1);
 	my $generatedORFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genORSimpleFileName";
@@ -1026,15 +1012,15 @@ sub ComputeBackgroundImage( $$ ) {
     my $keyword = PMSUtil::GetEventDetail( $raceFileName, $calendarRef, "Keywords" );
     # use the first keyword as the name of the directory holding background images for this event
     $keyword =~ s/,.*$//;
-	# modify the file name:
-	#	replace spaces with underscores
-	$keyword =~ s/\s+/_/g;
-	#	replace '/' with dash
-	$keyword =~ s;/+;-;g;
+    
+	# normalize the keyword (which will be used as a directory name):
+	$keyword = PMSUtil::NormalizeFileName( $keyword );
+	
 	# compute the full path name of the directory holding background images for this event:
 	my $fullPath = PMSStruct::GetMacrosRef()->{"AppDirName"} . "/Background/" . 
 		PMSStruct::GetMacrosRef()->{"YearBeingProcessed"} . "/$keyword/";
 	# get a list of .jpg and .jpeg files in the above directory:
+	# NOTE: .heic files DON'T WORK, so they must be converted to jpg (15aug2024)
 	my $dirHandle;
 	my $numBackgrounds = 0;
 	my @listOfFiles;

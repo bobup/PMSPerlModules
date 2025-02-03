@@ -108,6 +108,14 @@ our %season = (
 	"LCMstart"	=> "-10-01",		# LCM season is 2015-10-01 through 2016-09-30
 	"LCMend"	=> "-09-30"
 	);
+our $SCYStartOfSeasonDay = "June 1";
+our $SCYEndOfSeasonDay = "May 31";
+our $LCMStartOfSeasonDay = "October 1";
+our $LCMEndOfSeasonDay = "September 30";
+our $SCMStartOfSeasonDay = "January 1";
+our $SCMEndOfSeasonDay = "December 31";
+
+
 ### October, 2021 change by USMS:
 # [Specifically, the House of Delegates voted in favor of this rule:]
 #  “105.1.2 Deadlines – Times to be considered for records and Top 10 times shall be achieved 
@@ -119,9 +127,30 @@ our %season = (
 #++  immediately following the conclusion of the annual meeting, expire at the conclusion 
 #++  of the LCM National Championship meet and will not be included in the 2022 USMS 
 #++  Masters Swimming Code of Regulations and Rules of Competition.”
-our $LCMEndOfSeasonDay = "September 30";
-our $LCMStartOfSeasonDay = "October 1";
-sub FixLCMSeasonRangeFor2021( $ ) {
+
+#
+# FixSeasonRange - adjust the season begin and/or end dates for every season for the passed
+#	year.  See Notes below.
+#
+# PASSED:
+#	$yearBeingProcessed - the year we're processing, and for which the seasons will be
+#		adjusted if necessary.
+#
+# RETURNED:
+#	n/a
+#
+# SIDE EFFECTS:
+#	The %season hash (defined above) will be adjusted as necessary.
+#
+# NOTES:
+#	This routine can be called multiple times with no ill effects.
+#	See the comments above below the definition of the %season hash. Basically, USMS sometimes
+#	changes the date range of seasons during a specific year.  For example, the year 2021 (which
+#	also resulted in a change to 2022.) See USMS rule 105.1.2.  As of Dec 3, 2024 you can also
+#	look at https://www.usms.org/events/top-10 .
+#	Note that most seasons require no changes, so in that case this routine will do nothing.
+#
+sub FixSeasonRange( $ ) {
 	my $yearBeingProcessed = $_[0];
 	if( $yearBeingProcessed eq "2021" ) {
 		$season{"LCMend"} = "-10-10";
@@ -129,15 +158,28 @@ sub FixLCMSeasonRangeFor2021( $ ) {
 	} elsif( $yearBeingProcessed eq "2022" ) {
 		$season{"LCMstart"} = "-10-11";
 		$LCMStartOfSeasonDay = "October 11";
+	} elsif( $yearBeingProcessed eq "2024" ) {
+		$season{"SCYend"} = "-06-24";
+		$SCYEndOfSeasonDay = "June 24";
+	} elsif( $yearBeingProcessed eq "2025" ) {
+		$season{"SCYstart"} = "-06-25";
+		$SCYStartOfSeasonDay = "June 25";
 	}
-#print "\nFixLCMSeasonRangeFor2021(): season end='" . $season{"LCMend"} . "', " .
-#	"season start='" . $season{"LCMstart"} . "', LCMStartOfSeasonDay='$LCMStartOfSeasonDay'\n";
 	
-} # end of FixLCMSeasonRangeFor2021()
+	# the following macros are used to make the defined seasons available to template files:
+	PMSStruct::GetMacrosRef()->{"SCYStartOfSeasonDay"} = $PMSConstants::SCYStartOfSeasonDay;
+	PMSStruct::GetMacrosRef()->{"SCYEndOfSeasonDay"} = $PMSConstants::SCYEndOfSeasonDay;
+	PMSStruct::GetMacrosRef()->{"LCMStartOfSeasonDay"} = $PMSConstants::LCMStartOfSeasonDay;
+	PMSStruct::GetMacrosRef()->{"LCMEndOfSeasonDay"} = $PMSConstants::LCMEndOfSeasonDay;
+	PMSStruct::GetMacrosRef()->{"SCMStartOfSeasonDay"} = $PMSConstants::SCMStartOfSeasonDay;
+	PMSStruct::GetMacrosRef()->{"SCMEndOfSeasonDay"} = $PMSConstants::SCMEndOfSeasonDay;
+
+} # end of FixSeasonRange()
 
 # see the properties.txt file to see how the following is used:
-our $NoResultsPath = "NO RESULTS";
-our $NoSanctionYet = "NO SANCTION";
+our $NoResultsPath = "NO RESULTS";	# event sanctioned and scheduled; not swum or no results yet
+our $NoDetailsYet  = "NO DETAILS";	# event sanctioned by no details on what and when
+our $NoSanctionYet = "NO SANCTION";	# event no sanctioned
 
 
 1;  # end of module

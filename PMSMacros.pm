@@ -45,7 +45,7 @@ my %calendar;						# See ProcessCalendarPropertyLine() for more info.
 #		HRLink - a link to the human readable results generated while processing points.
 #	In addition, the following hash entries exist for each event:
 #		%calendar{n} = FileName
-#		%calendar{FileName} = n
+#xxxxxx		%calendar{FileName} = n
 #	where 'n' is the race number.
 
 
@@ -341,32 +341,8 @@ sub ProcessInclude( $$$ ) {
 #
 # PASSED:
 #	$line - a calendar line which is a physical line used to begin (or completely contain, 
-#		depending on the version) one specific OW event. A $line is made up of a sequence of
-#		fields, where each field looks like this:
-#			X	->
-#		where 'X' is a piece of data describing a single OW event.
-#		VERSION 1: a $line expressed in the Version 1 format looks like this:
-			#	[version  ->]	file name	->	cat ->   yyyy-mm-dd	->	distance (miles)	-> human readable swim name  ->  Unique Event Id	-> keywords
-			# e.g.
-			#	2014 Spring Lake 1 Mile=CAT1.csv	->	1	->	2014-06-23	->	1	-> 2014 Spring Lake 1 Mile  ->  1	->	Spring
-			# or
-			#	1	2014 Spring Lake 1 Mile=CAT1.csv	->	1	->	2014-06-23	->	1	-> 2014 Spring Lake 1 Mile  ->  1	->	Spring
-			# where [version   ->] is optional but if supplied is "1" followed by a "->".  All other fields except keywords are required.
-#			Note that it's assumed that a 'file name' cannot be a single digit (or else we'll think
-#			it's a Version number.)
-#		VERSION 2: Each "virtual line" of the calendar is made up of one or more physical lines where a all but the last physical line of
-			# a virtual line ends with a '\', implying that the next line logically follows the current line.  The order of the 
-			# fields of the virtual line is different than Version 1. It is:
-			#	VERSION	->	event name -> cat -> date -> distance -> unique event id -> keywords -> file name -> link 
-			# e.g.
-			#	2	->	2014 Spring Lake 1 Mile  ->  1	->	2014-06-23	->	1	->	1	->	Spring	->	2014 Spring Lake 1 Mile=CAT1.csv	->	https://www.clubassistant.com/c/6403675/file/competitions/SpringLake.pdf
-			# where VERSION is "2". Note the following:
-			#	- There is one additional field: link: this is a link to a description of this event for this year.
-			#	- The Version field is no longer optional (it's "2" in this case)
-			#	- The Keywords field is no longer optional
-			#	- All other fields are the same as described above except they are in a different order.
-#
-#	$yearBeingProcessed - See GetProperties()
+#		depending on the version) one specific OW event. Details below.
+#	$yearBeingProcessed - the OW year being processed (e.g. "2024")
 #
 # RETURNED:
 #	n/a
@@ -377,6 +353,84 @@ sub ProcessInclude( $$$ ) {
 #	same day and we want the order of events in the generated Accumulated Points page to
 #	be deterministic.
 #
+# DETAILS:
+#	A $line is made up of a sequence of fields, where each field looks like this:
+#		->	X	->
+#		where 'X' is a piece of data describing a single OW event.
+#	There are currently two versions of $line recognized, with variations described below.
+#	Here is a list of all possible fields and in which versions they exist:
+#	- file name [versions 1 and 2, with variations (see below)]
+#		the file name of the file holding the results of this event relative to the
+#		directory given by the InputResultsDir macro defined in the property file.
+#		NOTE: See Variations below.
+#	- the category of the event (1 or 2)
+#	- the date of the event in the form yyyy-mm-dd. (mm and/or dd can be a single digit)
+#	- the distance of the event in miles. 0 if NO DETAILS.
+#	- the event name known to the system, e.g.  "Spring Lake 1 Mile".  The name
+#		presented to the human is "2014 Spring Lake 1 Mile" where the "2014" comes from the date.
+#		If the event name contains a distance (e.g. "1 Mile" in this example) it should be last.  E.g.
+#		"Spring Lake 1 Mile" is OK, but "Spring Lake 1 Mile Swim" could be a problem when displaying
+#		"meet names" in AGSOTY.
+#	- the UNIQUE event id.  This Id is used to distinguish this event from all other events
+#		ever seen by this program for all years covered by this program.  Note that a cat 1 event
+#		and a cat2 event will have the same unique id if they are the same event.
+#		This field must be supplied (non-empty) but will be ignored if NO DETAILS.
+#	- the link is a link to info about this race. Probably only valid for the year of the race.
+#		This field must be supplied (non-empty) but will be ignored if NO DETAILS.
+#	- keywords: this is an OPTIONAL field and is used to support the UPLOAD web program. If present, it is a list of 1 or
+#		more words of the form
+#			xxx, yyy, zzz, ..., aaa
+#		where each string of words is a word likely found in the name of the file containing the results. The file name is
+#		NOT required to contain any/all of these words, but if, during an Upload, a file is specified to the Upload UI and
+#		that filename contains one of the words belonging to a different file then Upload will complain.  Example, the keywords
+#		for Spring Lake would be "Spring". If, during an Upload of some Berryessa results the file
+#		being uploaded has a name containing the word "Spring" (case insensitive) then Upload will complain.
+#
+#
+##### VERSION 1: a $line expressed in the Version 1 format looks like this:
+#		[version  ->]	file name	->	cat ->   yyyy-mm-dd	->	distance (miles)	-> human readable swim name  ->  Unique Event Id	-> keywords
+#	e.g.
+#		2014 Spring Lake 1 Mile=CAT1.csv	->	1	->	2014-06-23	->	1	-> 2014 Spring Lake 1 Mile  ->  1	->	Spring
+#	or
+#		1	2014 Spring Lake 1 Mile=CAT1.csv	->	1	->	2014-06-23	->	1	-> 2014 Spring Lake 1 Mile  ->  1	->	Spring
+#	where [version   ->] is optional but if supplied is "1" followed by a "->".  All other fields except keywords are required.
+#	Note that it's assumed that a 'file name' cannot be a single digit (or else we'll think
+#	it's a Version number.)
+#
+##### VERSION 2: Each "virtual line" of the calendar is made up of one or more physical lines where a all but the last physical line of
+#	a virtual line ends with a '\', implying that the next line logically follows the current line.  The order of the 
+# 	fields of the virtual line is different than Version 1. It is:
+#		VERSION	->	event name -> cat -> date -> distance -> unique event id -> keywords -> file name -> link 
+# 	e.g.
+#		2	->	2014 Spring Lake 1 Mile  ->  1	->	2014-06-23	->	1	->	1	->	\
+#			Spring	->	2014 Spring Lake 1 Mile=CAT1.csv	->	\
+#			https://www.clubassistant.com/c/6403675/file/competitions/SpringLake.pdf
+# 	where VERSION is "2". Note the following:
+#		- There is one additional field: link: this is a link to a description of this event for this year.
+#		- The Version field is no longer optional (it's "2" in this case)
+#		- The Keywords field is no longer optional
+#		- All other fields are the same as described above except they are in a different order.
+#
+##### VARIATIONS:
+#	- The "file name" can be one of the following strings:
+#		NO RESULTS : (case sensitive) this means that there are no results available for this event yet 
+#			(maybe because the event hasn't been swum yet, or the results haven't been reported, or they
+#			have been reported but there are outstanding errors that prevent them from being used.
+#			NOTE: the string "NO RESULTS" must match the constant named "NoResultsPath" in PMSConstants.
+#		NO DETAILS : (case sensitive) means that we have no details about this event. For this reason:
+#			- distance will be 0
+#			- unique event id is non-empty but ignored.
+#			- keywords is supplied as normal
+#			- link is non-empty but ignored.
+#			NO DETAILS implies NO RESULTS.
+#			NOTE: the string "NO DETAILS" must match the constant $PMSConstants::NoDetailsYet
+# 			This represents a placeholder for a race (or races) to be hosted by a specific host where the 
+# 			exact events are yet to be determined.  For example, we might know that Spring Lake will
+# 			host an open water event for cat 1 swimmers on a specific date, but we don't know the distance
+# 			or any other specific information. There would likely be two such lines, one for cat 1 and one
+# 			for cat 2.
+#
+
 
 # define static variables used during the life of execution:
 my $raceOrder = 0;		# used to keep track of the order of races
@@ -407,7 +461,7 @@ sub ProcessCalendarPropertyLine($$) {
 		#	$entries[5] = uniqueID
 		#	$entries[6] = keywords or undefined
 		$calendar{$raceOrder} = $entries[0];
-		$calendar{$entries[0]} = $raceOrder;
+#		$calendar{$entries[0]} = $raceOrder;
 		$calendar{"$raceOrder-FileName"} = $entries[0];
 		$calendar{"$raceOrder-CAT"} = $entries[1];
 		$calendar{"$raceOrder-Date"} = $entries[2];
@@ -446,13 +500,13 @@ sub ProcessCalendarPropertyLine($$) {
 		#	$entries[0] = eventName
 		#	$entries[1] = cat
 		#	$entries[2] = date
-		#	$entries[3] = distance
+		#	$entries[3] = distance		(can be 0)
 		#	$entries[4] = uniqueID
-		#	$entries[5] = keywords
-		#	$entries[6] = fileName
-		#	$entries[7] = infoLink
+		#	$entries[5] = keywords		(may be ignored)
+		#	$entries[6] = fileName		(can be "NO RESULTS" or "NO DETAILS")
+		#	$entries[7] = infoLink		(may be ignored)
 		$calendar{$raceOrder} = $entries[6];
-		$calendar{$entries[6]} = $raceOrder;
+#		$calendar{$entries[6]} = $raceOrder;
 		$calendar{"$raceOrder-FileName"} = $entries[6];
 		$calendar{"$raceOrder-CAT"} = $entries[1];
 		$calendar{"$raceOrder-Date"} = $entries[2];
@@ -517,11 +571,11 @@ sub ProcessCalendarPropertyLine($$) {
 sub InsertNoResultEvent( $ ) {
 	my $raceOrder = $_[0];
 	my $eventName = $calendar{"$raceOrder-EventName"};
-	my $fileName = $calendar{"$raceOrder-FileName"};
+	my $fileName = $calendar{"$raceOrder-FileName"};		# should be "NO RESULTS" or "NO DETAILS" or "NO SANCTION"
 	my $cat = $calendar{"$raceOrder-CAT"};
 	my $date = $calendar{"$raceOrder-Date"};
-	my $distance = $calendar{"$raceOrder-Distance"};
-	my $uniqueID = $calendar{"$raceOrder-UniqueID"};
+	my $distance = $calendar{"$raceOrder-Distance"};		# may be zero
+	my $uniqueID = $calendar{"$raceOrder-UniqueID"};		# may be 0
 				
 	PMS_MySqlSupport::InitialRecordThisEvent( $eventName, $fileName, $fileName, "", $cat,
 		$date, $distance, $uniqueID, "", -1, -1 );
@@ -677,9 +731,8 @@ sub ProcessMacros {
 #	log an error.  If we discover an event we don't know about then add it to our database.
 #
 # NOTE:
-#	When reading the property file we don't yet have a logging system nor a database handle set up, so
-#	we must postpone the work done here until those things are set up.  We can't set up the database
-#	connection until we have logging, and we can't set up logging until we've read our properties.
+#	If the distance is 0 then this is an entry placeholder, in which case there is no
+#	real validation to be done.
 #
 sub ValidateCalendar() {
 	
@@ -690,6 +743,10 @@ sub ValidateCalendar() {
 		my $category = $calendar{"$i-CAT"};
 		my $eventDate = $calendar{"$i-Date"};
 		my $distance = $calendar{"$i-Distance"};
+		
+		if( $distance == 0 ) {
+			return;
+		}
 		
 		# we have a calendar entry containing a unique event, etc.
 		# do we have this event in our history?

@@ -1470,13 +1470,13 @@ sub BreakFullNameIntoBrokenNames($$$) {
 #		"Illegal" if there was a problem with the passed parameters.  Otherwise it will not.
 #
 # EXAMPLE:
-#	ValidateDateWithinSeason( "2016-03-03", "SCY", "20", "16" ) will return an empty string because the 2016 SCY
+#	ValidateDateWithinSeason( "2016-03-03", "SCY", "2016" ) will return an empty string because the 2016 SCY
 #		season includes March 3, 2016.
-#	ValidateDateWithinSeason( "2015-08-03", "SCY Records", "20", "16" ) will return an empty string because the 2016 SCY
+#	ValidateDateWithinSeason( "2015-08-03", "SCY Records", "2016" ) will return an empty string because the 2016 SCY
 #		season includes August 3, 2015.
-#	ValidateDateWithinSeason( "2016-06-03", "SCY", "20", "16" ) will return an error string because the 2016 SCY
+#	ValidateDateWithinSeason( "2016-06-03", "SCY", "2016" ) will return an error string because the 2016 SCY
 #		season does NOT include June 3, 2016.  (June 3, 2016 is part of the 2017 SCY season.)
-#	ValidateDateWithinSeason( "2016-06-03", "SCM", "20", "16" ) will return an empty string because the 2016 SCM
+#	ValidateDateWithinSeason( "2016-06-03", "SCM", "2016" ) will return an empty string because the 2016 SCM
 #		season includes June 3, 2016.
 #
 	
@@ -1489,7 +1489,7 @@ sub ValidateDateWithinSeason( $$$ ) {
 	my $simpleCourse = $course;
 	
 	# make sure we know the dates defining the season for the passed course:
-	PMSConstants::FixLCMSeasonRangeFor2021( $yearBeingProcessed );
+	PMSConstants::FixSeasonRange( $yearBeingProcessed );
 	
 	$simpleCourse =~ s/^(...).*$/$1/;
 	my $result = "";
@@ -1878,6 +1878,28 @@ sub GenerateUniqueID2( $$$$ ) {
 } # end of GenerateUniqueID2()
 
 
+# 
+# NormalizeFileName - convert the passed simple file name into a normalized name
+#
+# PASSED:
+#	$simpleFileName - the file name to be normalized. No directory structure - just the file.
+# 
+# RETURNED:
+#	$simpleFileName - the file name where we make the following changes:
+#		- remove all spaces and replace them with underscores
+#		- remove all slashes (/) and replace them with dashes (-)
+#
+sub NormalizeFileName( $ ) {
+	my $simpleFileName = $_[0];
+
+	# modify the file name:
+	#	replace spaces with underscores
+	$simpleFileName =~ s/\s+/_/g;
+	#	replace '/' with dash
+	$simpleFileName =~ s;/+;-;g;
+
+	return $simpleFileName;
+} # end of NormalizeFileName()
 
 
 
