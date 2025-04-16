@@ -81,9 +81,9 @@ sub ProcessRace( $$$$$$ ) {
     $ext =~ s/^.*\.//;
     $ext = lc( $ext );
 
-    # begin our own generation of human readable results if we're not processing a single file:
+    # begin our own generation of human readable results unless we're not supposed to
 	my $hrResults = "";
-    if( !PMSStruct::GetMacrosRef()->{"SingleFile"} ) {
+    if( PMSStruct::GetMacrosRef()->{"GenerateHumanReadableResults"} ) {
 		$hrResults = BeginGenHTMLRaceResults( $raceFileName, $calendarRef );
 	}
     
@@ -207,7 +207,7 @@ sub ProcessRace( $$$$$$ ) {
 	PMS_MySqlSupport::UpdateThisEvent( $eventId, $swimsInThisRace[$category], $dqsInThisRace[$category] );
 
 	# we're finished generating the human readable results:
-    if( !PMSStruct::GetMacrosRef()->{"SingleFile"} ) {
+    if( PMSStruct::GetMacrosRef()->{"GenerateHumanReadableResults"} ) {
 		EndGenHTMLRaceResults();
 	}
 	
@@ -506,7 +506,7 @@ sub ProcessResultRow( $$$$$$$$$$$$ ) {
 	        $raceFileName, $eventId );
 	    $swimsInThisRace[$category]++;
 		# generate a human readable result row for our human readable results html file:
-		if( !PMSStruct::GetMacrosRef()->{"SingleFile"} ) {
+  		if( PMSStruct::GetMacrosRef()->{"GenerateHumanReadableResults"} ) {
 			GenHTMLRaceResultRow( $rowRef, $category );
 		}
     } else {
@@ -722,7 +722,7 @@ sub BeginGenHTMLRaceResults( $$ ) {
 #	PMSLogging::DumpNote( "", "", "Begin generation of human readable results: file generated: '$genSimpleFileName'", 1);
 	my $generatedFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genSimpleFileName";
 	open( $generatedAGFileHandle, "> $generatedFileName" ) || die( "PMSProcess2SingleFile::BeginGenHTMLRaceResults(): " .
-		"  Can't open/create $generatedFileName: $!" );
+		"  ABORT! Can't open/create $generatedFileName: $!" );
 
 	###############################################################################
 	########################## OVERALL RESULTS ####################################
@@ -743,7 +743,7 @@ sub BeginGenHTMLRaceResults( $$ ) {
 #	PMSLogging::DumpNote( "", "", "Begin generation of overall results: file generated: '$genORSimpleFileName'", 1);
 	my $generatedORFileName = PMSStruct::GetMacrosRef()->{"hrResultsFullDir"} . "$genORSimpleFileName";
 	open( $generatedORFileHandle, "> $generatedORFileName" ) || die( "PMSProcess2SingleFile::BeginGenHTMLRaceResults(): " .
-		"  Can't open/create $generatedORFileName: $!" );
+		"  ABORT! Can't open/create $generatedORFileName: $!" );
 	PMSStruct::GetMacrosRef()->{"AGFileName"} = $genSimpleFileName;
 	PMSTemplate::ProcessHTMLTemplate( $templateGenORHeadPathName, $generatedORFileHandle );
 
