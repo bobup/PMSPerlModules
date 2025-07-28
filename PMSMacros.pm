@@ -450,7 +450,6 @@ sub ProcessCalendarPropertyLine($$) {
 	}
 	my $numEntries = scalar( @entries );
 	$raceOrder++;
-
 	if( $version == 1 ) {
 		# the @entries array stores these entries:
 		#	$entries[0] = FileName
@@ -470,7 +469,7 @@ sub ProcessCalendarPropertyLine($$) {
 		$calendar{"$raceOrder-UniqueID"} = $entries[5];
 		# perform some sanity checks.  Errors won't cause the program to halt - just display the error to the user.
 		if( $numEntries < 6 ) {
-			PMSLogging::DumpWarning( "", "", "GenerateOWResults::ProcessCalendarPropertyLine(): " .
+			PMSLogging::DumpWarning( "", "", "PMSMacros::ProcessCalendarPropertyLine(): " .
 				"Insufficient number of fields ($numEntries, should be 6 or more) in a version $version " .
 				"calendar entry #$raceOrder (Line NOT ignored.)", 1 );
 		}
@@ -517,7 +516,7 @@ sub ProcessCalendarPropertyLine($$) {
 		$calendar{"$raceOrder-Link"} = $entries[7];
 		# perform some sanity checks.  Errors won't cause the program to halt - just display the error to the user.
 		if( $numEntries < 8 ) {
-			PMSLogging::DumpWarning( "", "", "GenerateOWResults::ProcessCalendarPropertyLine(): " .
+			PMSLogging::DumpWarning( "", "", "PMSMacros::ProcessCalendarPropertyLine(): " .
 				"Insufficient number of fields ($numEntries, should be 8) in a version $version " .
 				"calendar entry #$raceOrder (Line NOT ignored.)", 1 );
 		}
@@ -543,7 +542,7 @@ sub ProcessCalendarPropertyLine($$) {
 		}
 	} # end of version 2
 	else {
-		PMSLogging::DumpError( "", "", "GenerateOWResults::ProcessCalendarPropertyLine(): " .
+		PMSLogging::DumpError( "", "", "PMSMacros::ProcessCalendarPropertyLine(): " .
 			"Unknown version ($version)", 1 );
 	}
 

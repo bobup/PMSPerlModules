@@ -164,6 +164,8 @@ sub FixSeasonRange( $ ) {
 	} elsif( $yearBeingProcessed eq "2025" ) {
 		$season{"SCYstart"} = "-06-25";
 		$SCYStartOfSeasonDay = "June 25";
+	#	$season{"SCYstart"} = "-06-1";
+	#	$SCYStartOfSeasonDay = "June 1";
 	}
 	
 	# the following macros are used to make the defined seasons available to template files:
