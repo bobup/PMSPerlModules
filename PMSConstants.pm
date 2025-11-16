@@ -83,6 +83,17 @@ for( my $i = 0; $i <= 10; $i++ ) {
 	$POINTS[$PLACE[$i]] = $i;
 }
 
+# Define the different genders we recognize:
+# It's up to the code to fold other genders into this set, or throw an error of "illegal gender" if that's
+# not possible.  For example, PMSUtil::GenerateCanonicalGender() will fold "W" and "G" to "F".
+# Note that the code also has to fold lower case to upper, and accept partial words. For example, "Women" and
+# "Wom" and "w" all get folded into "F".
+# 4Nov2025: added "N", as apparently USMS now allows one to register without giving a gender (or maybe something else?
+# I don't know yet. I haven't found the complete rules yet.)
+our $RecognizedGenders = "FMN";
+# USMS rules state slightly different rules for binary vs. non-binary genders. See
+# https://www.usms.org/volunteer-central/policy-and-governance/usms-policies/interim-eligibility-policy
+our $BinaryGenders = "FM";
 
 # Define the different colors of the rows in the accumulated results.
 our @trColor = ();

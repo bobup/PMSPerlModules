@@ -346,7 +346,7 @@ sub ConvertDateToISO( $ ) {
 	my $year = $3;
 	# see if the passed date was already in ISO format:
 	if( (defined $month ) && length( $month ) == 4 ) {
-		# oops - bad assumption.  Swap the numbers around...
+		# yes - already ISO format or close to it.  Swap the numbers around...
 		my $tmp = $year;
 		$year = $month;
 		$month = $day;
@@ -437,6 +437,13 @@ print $trace->as_string; # like carp
 		$yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
 		my $twoDigitYear = $year;
 		my ($sec,$min,$hour,$mday,$mon,$currentYear,$wday,$yday,$isdst) = localtime();
+		
+		# 5Nov2025: in the case of the Upload tool the yearBeingProcessed may not be defined. In all
+		# other cases it should be, but if not the following code won't break anything...(?)
+		# Handle the Upload case:
+		if( !defined( $yearBeingProcessed ) ) {
+			$yearBeingProcessed = $currentYear + 1900;
+		}
 		$year += 2000;		# convert '83' to '2083', or '02' to '2002'
 		# Here is the problem:  Pretend the current year is 2019.  Above we convert the year
 		# '53' to 2053 which is probably a bad assumption (especially if we're talking
@@ -844,16 +851,13 @@ sub ValidateAndCorrectSwimmerId {
 } # end of ValidateAndCorrectSwimmerId()
 
 
-
-
-
-# GenerateCanonicalGender - return the one letter gender designation (M or F) for the
-#	passed gender.  Return '?' if the passed gender isn't recognized.
-# Note:  errors are printed, not logged, because this routine is designed to be used prior
-#	to initialization of our log file.
-sub GenerateCanonicalGender($$$) {
-	my($fileName, $lineNum) = @_;
-	my $passedGender = $_[2];
+# ConvertToStandardGender -
+#
+# PASSED:
+#	$passedGender - a string representing the gender. The first letter is all we look at.
+#
+sub ConvertToStandardGender($) {
+	my $passedGender = $_[0];
 	if( !defined $passedGender ) {
 		$passedGender = '(undefined)';		# invalid gender - caught below
 	} elsif( $passedGender eq "" ) {
@@ -866,12 +870,60 @@ sub GenerateCanonicalGender($$$) {
 	$result = 'F' if( $result eq 'W');
 	$result = 'F' if( $result eq 'G');
 	$result = 'M' if( $result eq 'B');
-	if( ($result ne 'M') && ($result ne 'F') ) {
-		$result = "?";
-		print "GenerateCanonicalGender: (error in '$fileName', line $lineNum): returning illegal value '$result' when passed '$passedGender'\n";
+	return $result;
+} # end of ConvertToStandardGender()
+
+
+
+# GenerateCanonicalGender - return the one letter gender designation (M or F) for the
+#	passed gender.  Return '?' if the passed gender isn't recognized.
+#
+# PASSED:
+#	$fileName - name of file being processed.  Can be empty string.
+#	$lineNum - the line of the file being processed. Can be empty string.
+#	$passedGender - a string representing the gender. The first letter is all we look at.
+#
+# RETURNED:
+#	$result - the standard single letter representing the gender. May or may not be a
+#		legal gender.
+#
+# Note:  errors are printed, not logged, because this routine is designed to be used prior
+#	to initialization of our log file.
+sub GenerateCanonicalGender($$$) {
+	my($fileName, $lineNum) = @_;
+	my $passedGender = $_[2];
+	my $result = ConvertToStandardGender( $passedGender );
+	
+	#if( ($result ne 'M') && ($result ne 'F') ) {
+	if( index( $PMSConstants::RecognizedGenders, $result ) == -1 ) {
+	#if( ! IsValidGender( $result ) ) {
+		print "PMSUtil::GenerateCanonicalGender: (error in '$fileName', line $lineNum): returning illegal " .
+			"value '$result' when passed '$passedGender'\n";
 	}
 	return $result;
 } # end of GenerateCononicalGender()
+
+
+# IsValidGender - return true (1) if the passed gender is valid, 0 otherwise
+#
+# PASSED:
+#	$gender - a string representing the gender. The first letter is all we look at.
+# 
+# RETURNED:
+#	$result - 1 if valid, 0 otherwise
+#
+# NOTES: 
+#	may print an error.
+#
+sub IsValidGender($) {
+	my ($gender ) = @_;
+	my $result = 1;		# assume a valid gender
+	$gender = ConvertToStandardGender( $gender );
+	if( index( $PMSConstants::RecognizedGenders, $gender ) == -1 ) {
+		$result = 0;
+	}
+	return $result;
+} # end of IsValidGender()
 
 
 

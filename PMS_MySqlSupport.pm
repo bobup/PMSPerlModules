@@ -470,6 +470,9 @@ sub GetFullTeamName( $ ) {
 ##		completely different if we find an authoritative regNum for this swimmer (from the RSIDN
 ##		file.)  It could be 0 if there is an error.
 ##	$isPMS - 1 if the passed swimmer is confirmed to be a PMS swimmer, 0 otherwise.
+##	$registeredTeam - the team they registered with when registering with USMS#
+##	$correctedGender - the passed $gender unless RSIDN tells us differently.
+#
 #
 # todo: add team to db (may not be official) - are we doing this already?
 #
@@ -493,7 +496,8 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 	my $resultErrorNote = "";
 	my $resultErrorRegnum = "";
 	my $yearBeingProcessed = PMSStruct::GetMacrosRef()->{"YearBeingProcessed"};
-
+	my $correctedGender = $gender;		# default
+	
 	# debugging...look for specific first/last name to log lots of details
 	my $debugLastName = 'xxxxxx';
 	
@@ -599,7 +603,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 			$correctedLastName, $correctedRegNum, $correctedTeam, $correctedDOB, $rsidnId);
 			
 		($correctedFirstName, $correctedMiddleInitial, 
-			$correctedLastName, $correctedRegNum, $correctedTeam, $correctedDOB,
+			$correctedLastName, $correctedRegNum, $correctedTeam, $correctedDOB, $correctedGender,
 			$resultMissingDataType, $resultErrorNote, $resultErrorRegnum, $rsidnId) = 
 				LookUpSwimmerInRSIDN( $firstName, $middleInitial, $lastName, $regNum, 
 					$dateOfBirthDef, $gender, $team, $age, $recordedPlace );
@@ -631,7 +635,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 
 			if( (lc($lastName) eq lc($debugLastName)) ) {
 				print "...swimmer was found in RSIDN_$yearBeingProcessed, correctedRegNum=$correctedRegNum, " .
-				"correctedDOB='$correctedDOB'.  corrected name: " .
+				"correctedDOB='$correctedDOB', correctedGender='$correctedGender'.  corrected name: " .
 					"'$correctedFirstName' '$middleInitial' $correctedLastName'.\n";
 			}
 			$regNum = $correctedRegNum;
@@ -679,7 +683,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 			"SELECT SwimmerId, Age2, AgeGroup, RegNum FROM Swimmer " .
 				"WHERE FirstName = \"$correctedFirstName\" " .
 				"AND DateOfBirth = \"$correctedDOB\" " .
-				"AND Gender = \"$gender\" " .
+				"AND Gender = \"$correctedGender\" " .
 				"AND ( " .
 					"   (MiddleInitial = '$correctedMiddleInitial') " .
 					"OR (MiddleInitial IS NULL) " .
@@ -757,7 +761,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 					"Age1, Age2, AgeGroup, RegisteredTeamInitials, DateOfBirth, " .
 					"isPMS, RSIDN_ID) " .
 					"VALUES (\"$correctedFirstName\", \"$correctedMiddleInitial\", \"$correctedLastName\", " .
-					"\"$gender\", \"$insertedRegNum\", " .
+					"\"$correctedGender\", \"$insertedRegNum\", " .
 					"\"$age\", \"$age\", \"$ageGrp\", \"$registeredTeam\", \"$correctedDOB\", " .
 					"$isPMS, \"$rsidnId\")") ;
 			# get the SwimmerId of the swimmer we just entered into our db
@@ -773,6 +777,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 	# with (and also the team they are really registered with) if necessary.
 	AssociateSwimmerWithTeams( $resultSwimmerId, $registeredTeam, $team );
 	
+	
 	# if we found any errors we'll update the MissingData table with details
 	if( $resultMissingDataType ne "" ) {
 		PMS_MySqlSupport::LogInvalidSwimmer( $resultMissingDataType, $resultSwimmerId, $resultErrorRegnum,
@@ -783,7 +788,7 @@ sub InsertSwimmerIntoMySqlDB( $$$$$$$$$$$$$$ ) {
 #		"return swimmerId: '$resultSwimmerId', regNum: '$regNum', isPMS: '$isPMS', " .
 #		"registeredTeam: '$registeredTeam'", 1 );
 
-	return ($resultSwimmerId, $regNum, $isPMS, $registeredTeam);
+	return ($resultSwimmerId, $regNum, $isPMS, $registeredTeam, $correctedGender);
 } # end of InsertSwimmerIntoMySqlDB()
 
 
@@ -1192,7 +1197,7 @@ sub HandleAgeUp( $$$$$ ) {
 #	$gender - the gender of the swimmer noted in the results.
 #	$team - the team of the swimmer noted in the results.
 #	$age - the age of the swimmer noted in the results.
-#	$recordedPlace
+#	$recordedPlace - used in log only
 #	
 # RETURNED:
 #	($resultFirstName, $resultMiddleInitial, $resultLastName) - this swimmer's
@@ -1204,6 +1209,7 @@ sub HandleAgeUp( $$$$$ ) {
 #	$resultTeam - The passed $team unless RSIDN tells us that they are registered with a different
 #		team.
 #	$resultDOB - the passed $birthDate unless RSIDN tells us differently.
+#	$resultGender - the passed $gender unless RSIDN tells us differently.
 #	$resultMissingDataType, 
 #	$resultErrorNote - formatted for HTML and logging - needs a bit of conversion prior to displaying via
 #		HTML or in the log file.  When printing HTML change all '\n' to '<br>' and '\t# ' to nothing.
@@ -1261,6 +1267,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 	my $resultTeam = $team;
 	my $resultAge = $age;
 	my $resultDOB = $birthDate;
+	my $resultGender = $gender;
 	my $resultMissingDataType = "";		# assume no error with this swimmer
 	my $resultErrorNote = "";
 	my $resultErrorRegnum = "";
@@ -1329,6 +1336,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 				$resultTeam = $RSIDNTeam[$count];
 				$resultMiddleInitial = $RSIDNMiddleInitial[$count];
 				$resultDOB = $RSIDNBirthDate[$count];
+				$resultGender = $RSIDNGender[$count];
 				$resultRsidnId = $RSIDNId[$count];
 				# at this point we found our swimmer and they have the correct regnum, so we're 
 				# done.
@@ -1383,6 +1391,9 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 					$resultLastName = $RSIDNLastName[0];
 					$resultRegNum = $RSIDNRegNum[0];
 					$resultRsidnId = $RSIDNId[0];
+					$resultTeam = $RSIDNTeam[0];
+					$resultDOB = $RSIDNBirthDate[0];
+					$resultGender = $RSIDNGender[0];
 					PMSLogging::DumpWarning( "", "", "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): This query failed:\n" .
 						"    $query\n    But the name and regnum match an RSIND entry exactly.  We will assume they \n" .
 						"    are a PMS swimmer, but the SELECT failure should be investigated.", 1 );
@@ -1458,7 +1469,7 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 			# log the error:
 			$resultMissingDataType = "PMSNamesButNoRegnum";
 			$resultErrorRegnum = $regNum;
-			$resultErrorNote .= 
+			$resultErrorNote = 
 				"# [Found name in PAC database 2+ times, " .
 					"but nothing else (including regnum) clearly makes this swimmer a PacMasters swimmer.]\n$logSupplied" .
 					"\t# We will assume this swimmer is NOT a PMS swimmer, but here are some possibilities:\n";
@@ -1482,13 +1493,42 @@ sub LookUpSwimmerInRSIDN( $$$$$$$$ ) {
 		}
 	}
 	
+	# We must be sure a M didn't score points in
+	# a F event, and vise versa. This trumps any errors found above.
+	# We'll handle that here:
+	if( $resultGender ne $gender ) {
+		# this swimmer received results in the wrong gender. 
+		if( $resultGender eq "N"  ) {
+			# 8nov2025: handle disagreements in gender. USMS just added the gender "N" - see 
+			# https://www.usms.org/volunteer-central/policy-and-governance/usms-policies/interim-eligibility-policy.
+			# So now we need to handle the new gender. 
+			# For now we will not give this swimmer any points ("recognition"). This isn't completely correct -
+			# see above link for explanation.
+			$resultMissingDataType = "PMSGenderNA";
+			$resultErrorRegnum = $regNum;
+			$resultErrorNote = "This swimmer is registered in USMS with a gender of 'N' which " .
+				"makes them ineligible for Open Water and AGSOTY points.\n" .
+				"For details see:\n<a href=" .
+				"'https://www.usms.org/volunteer-central/policy-and-governance/usms-policies/interim-eligibility-policy'>" .
+				"https://www.usms.org/volunteer-central/policy-and-governance/usms-policies/interim-eligibility-policy</a>.";
+			# this is new so we're going to NOTE it so we make sure we handle it correctly:
+			PMSLogging::DumpNote( "", "", "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): Found a swimmer who registered as 'N' " .
+				"but is in the swimming results. Name: $resultFirstName $resultMiddleInitial $resultLastName", 1 );
+		} else {
+			# this is just a "normal" error, where the person was placed in the wrong gender.
+			PMSLogging::DumpError( "", "", "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): Invalid gender: " .
+				"$resultFirstName $resultMiddleInitial $resultLastName registered in USMS with the gender " .
+				"'$resultGender' but in in the results for '$gender'.", 1 );
+		}
+	}
+	
 	if( (lc($debugLastName) eq lc($lastName)) ) {
 		print "PMS_MySqlSupport::LookUpSwimmerInRSIDN(): Returning: '$resultFirstName', " .
 			"'$resultMiddleInitial', '$resultLastName', '$resultRegNum', '$resultTeam', '$resultDOB', " .
-			"'$resultMissingDataType', '$resultErrorNote', '$resultErrorRegnum', '$resultRsidnId'\n";
+			"'$resultGender', '$resultMissingDataType', '$resultErrorNote', '$resultErrorRegnum', '$resultRsidnId'\n";
 	}
 	return $resultFirstName, $resultMiddleInitial, $resultLastName, $resultRegNum, $resultTeam, $resultDOB,
-		$resultMissingDataType, $resultErrorNote, $resultErrorRegnum, $resultRsidnId;
+		$resultGender, $resultMissingDataType, $resultErrorNote, $resultErrorRegnum, $resultRsidnId;
 	
 } # end of LookUpSwimmerInRSIDN()
 
@@ -1825,7 +1865,10 @@ sub LogInvalidSwimmer {
 		$newDataString = "$eventName (Cat $category)";
 	} elsif( $mdType eq "PMSNamesButNoRegnum" ) {
 		$uniqueKey = MySqlEscape( $swimmerId );
-		$newDataString = "$eventName (Cat $category)";		
+		$newDataString = "$eventName (Cat $category)";
+	} elsif( $mdType eq "PMSGenderNA" ) {
+		$uniqueKey = MySqlEscape( $swimmerId );
+		$newDataString = "$eventName (Cat $category)";
 	} else {
 		die "PMS_MySqlSupport::LogInvalidSwimmer(): Unknown MissingDataType ShortName='$mdType'.";
 	}
@@ -1862,9 +1905,15 @@ sub LogInvalidSwimmer {
 		}
 	} else {
 		# we haven't seen this error before - create a new log entry
-		$dataString = MySqlEscape( "Event(s) and details: $newDataString" );
-		$dataString .= "; uniqueKey='$uniqueKey'";
+		$dataString = "Event(s) and details: $newDataString; uniqueKey='$uniqueKey'";
+		
+#		PMSLogging::DumpNote( "", 0, "PMS_MySqlSupport::LogInvalidSwimmer(): " .
+#			"dataString before escape= <<<$dataString>>>", 1 );
+
 		$dataString = MySqlEscape( $dataString );
+
+#		PMSLogging::DumpNote( "", 0, "PMS_MySqlSupport::LogInvalidSwimmer(): " .
+#			"dataString after escape= <<<$dataString>>>", 1 );
 
 		($sth,$rv) = PrepareAndExecute( $dbh, 
 			"INSERT INTO MissingData VALUES (0, $missingDataTypeId, $swimmerId, '$regNum'," .
@@ -1888,6 +1937,9 @@ sub MySqlEscape( $ ) {
 		$string =~ s/"/\\"/g;
 		$string =~ s/'/\\'/g;
 		$string =~ s/\\/\\/g;
+#	$string =~ s/\\/\\/g;   --- what was this supposed to do?  possibly:  s/\\/\\\\/g    ???  If so, 
+###			it must be above the previous substitution.
+###		Leaving it alone for now... 25sep2025
 	}
 	return $string;
 } # end of MySqlEscape()

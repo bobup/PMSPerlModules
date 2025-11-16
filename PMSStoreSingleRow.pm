@@ -24,6 +24,7 @@ my %nextExpectedResultPlace;    # $nextExpectedResultPlace{gender:ageGrp/numSwim
 my $numNonPMSSwimmersInThisGroup;	# $numNonPMSSwimmersInThisGroup is the number of non-PMS
 									# swimmers we've seen SO FAR in the current gender/age group / swim / category.  Used to
 									# help us assign the correct place to PMS swimmers.
+my $numNonBinarySwimmersInThisGroup;	# number of non-binary swimmers seen so far in the current eventGender/age group / swim / category.
 my $numTiesSeenInResults;			# $numTiesSeenInResults is the number of consecutive ties we've seen in the results for
 									# the current gender/age group / swim / category immediatly prior to the row
 									# we are processing.  Used to
@@ -44,7 +45,7 @@ my $computedPMSPlace;				# we also need to track the next PMS swimmer's place. N
 #
 # PASSED:
 #   $rowRef - reference to a row of results, containing the following:
-    # $rowRef->[0] - gender:age group
+    # $rowRef->[0] - gender:age group. Note that this is the "event gender", not necessarily the swimmer's gender.
     # $rowRef->[1] - place - must be non-empty
     # $rowRef->[2] - lastname - can be anything but must be non-empty
     # $rowRef->[3] - firstname - can be anything but must be non-empty
@@ -106,6 +107,7 @@ sub StoreResult {
         # this is the first swimmer in this race/gender/age group -  initialize:
         $nextExpectedResultPlace{$genAgeGrpRace} = 1;
         $numNonPMSSwimmersInThisGroup = 0;
+        $numNonBinarySwimmersInThisGroup = 0;
         $numTiesSeenInResults = 0;
         $lastRecordedPlaceSeen = 0;
         $lastRecordedTimeSeen = 0;		# not used if $eventType == "distance"
@@ -123,8 +125,8 @@ sub StoreResult {
     $ageGrp =~ s/^.*://;
     
     # get the gender
-    my $gender = $rowRef->[0];
-    $gender =~ s/:.*//;
+    my $eventGender = $rowRef->[0];
+    $eventGender =~ s/:.*//;
 
     if( ($lastName =~ m/$debugLastName/i)  ) {
     	print "PMSStoreSingleRow::StoreResult(): got $debugLastName: genAgeGrpRace='$genAgeGrpRace', regnum=$regNum\n";
@@ -193,9 +195,9 @@ sub StoreResult {
     if( ($lastName =~ m/$debugLastName/i)  ) {
     	print "PMSStoreSingleRow::StoreResult(): before InsertSwimmerIntoMySqlDB: regnum=$regNum, team='$team'\n";
     }
-	(my $swimmerId, my $correctedRegNum, my $isPMS, my $correctedTeam) = PMS_MySqlSupport::InsertSwimmerIntoMySqlDB( 
+	(my $swimmerId, my $correctedRegNum, my $isPMS, my $correctedTeam, my $correctedGender) = PMS_MySqlSupport::InsertSwimmerIntoMySqlDB( 
 		$dateOfBirth, $regNum, $firstName, $middleInitial,
-		$lastName, $gender, $age, $ageGrp, $genAgeGrpRace, $raceFileName, $team, $eventId,
+		$lastName, $eventGender, $age, $ageGrp, $genAgeGrpRace, $raceFileName, $team, $eventId,
 		$recordedPlace, $rowNum );
 
 	# 12jun2024: we need to remember this swimmer's team IF the results show no team but we actually know the team from the
@@ -249,6 +251,7 @@ sub StoreResult {
 				$recordedPlace . ") and computedResultsPlace ($computedResultsPlace) for $firstName $lastName.\n" .
 				"  genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
 				"    numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+				"	 numNonBinarySwimmersInThisGroup (so far)=$numNonBinarySwimmersInThisGroup, " .
 				"    numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
 				"    lastRecordedPlaceSeen='$lastRecordedPlaceSeen', Swimmer's internal ID=$swimmerId,\n" .
 				"    filename='$raceFileName'.\n" .
@@ -276,6 +279,7 @@ sub StoreResult {
 					"    and this swimmer's time was $currentTime.\n" .
 					"	genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
 					"	numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+					"	 numNonBinarySwimmersInThisGroup (so far)=$numNonBinarySwimmersInThisGroup, " .
 					"	numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
 					"	filename='$raceFileName'.\n" .
 					"	{PMSStoreSingleRow.pm::StoreResult()}", 
@@ -295,6 +299,7 @@ sub StoreResult {
 					"    previous swimmer's time ($previousTime), but the faster swimmer was placed slower!\n" .
 					"	genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
 					"	numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+					"	 numNonBinarySwimmersInThisGroup (so far)=$numNonBinarySwimmersInThisGroup, " .
 					"	numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
 					"	filename='$raceFileName'.\n" .
 					"	{PMSStoreSingleRow.pm::StoreResult()}", 
@@ -308,6 +313,7 @@ sub StoreResult {
 					"    ARE THE SAME, yet they are not placed in a tie.\n" .
 					"	genAgeGrpRace='$genAgeGrpRace' (unique race identifier: Gender:age group/Event number/Category),\n" .
 					"	numNonPMSSwimmersInThisGroup (so far)=$numNonPMSSwimmersInThisGroup, " .
+					"	 numNonBinarySwimmersInThisGroup (so far)=$numNonBinarySwimmersInThisGroup, " .
 					"	numTiesSeenInResults (so far)=$numTiesSeenInResults,\n" .
 					"	filename='$raceFileName'.\n" .
 					"	{PMSStoreSingleRow.pm::StoreResult()}", 
@@ -319,14 +325,25 @@ sub StoreResult {
 		$lastRecordedTimeSeen = $timeInHundredths;
 	} # end of if( $eventType eq "timed"....
     
+    
     # Next, handle the case where this swimmer swam slower than 1 or more non-PMS swimmers, thus we 
     # need to adjust their place in the Swim table to slide them up in place, logically removing
     # the non-PMS swimmers.
     # NOTE: in the distance case we only see PMS swimmers here.
 	if( $isPMS ) {
-		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, $computedPMSPlace,
-			$rowRef, $rowNum );
-		$computedPMSPlace++;
+		# 14Nov2025: We will NOT award points to those with a non-binary gender.  See
+		# https://www.usms.org/volunteer-central/policy-and-governance/usms-policies/interim-eligibility-policy
+		# if this is the case we let others slide up in points.
+		if( index( $PMSConstants::BinaryGenders, $correctedGender ) >= 0 ) {
+			PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, $computedPMSPlace,
+				$rowRef, $rowNum );
+			$computedPMSPlace++;
+		} else {
+			# non-binary gender. Skip their points and assign to the next slowest swimmer.
+			PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, -10,
+				$rowRef, $rowNum );
+			$numNonBinarySwimmersInThisGroup++;
+		}
 	} else {
 		PMS_MySqlSupport::AddSwim( $eventId, $swimmerId, $timeOrDistance, $recordedPlace, -10,
 			$rowRef, $rowNum );

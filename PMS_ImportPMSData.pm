@@ -158,7 +158,7 @@ sub ReadPMS_RSIDNData( $$ ) {
 	    my $rowRef = {};
 	    for( $rowNum = 2; $rowNum <= $numRowsInSpreadsheet; $rowNum++ ) {
 	    	if( ($rowNum % 1000) == 0 ) {
-	    		print "...working on row $rowNum...\n";
+	    		print "...working on RSIND row $rowNum...\n";
 	    	}
     		
 	    	GetRSINDRow( $rowRef, $rowNum, $g_sheet1_ref, $yearBeingProcessed, $filename );
